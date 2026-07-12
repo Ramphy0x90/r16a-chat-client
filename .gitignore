@@ -1,0 +1,82 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ---- Rust (FFI bridge crate) ----
+rust/target/
+rust/Cargo.lock
+
+# ---- Android signing (default file covers debug/profile/release build dirs,
+# not signing material) ----
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+**/android/key.properties
+*.jks
+*.keystore
+
+# ---- iOS / macOS (default file misses these) ----
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.*
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Flutter/ephemeral
+**/Pods/
+**/*.xcworkspace
+!default.xcworkspace
+**/xcuserdata/
+
+# ---- Linux / Windows desktop build output ----
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# ---- Secrets (matches r16a-chat convention, likely unused here but cheap insurance) ----
+secret-*.yaml
+*.env
+.env.*
