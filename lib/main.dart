@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'src/rust/frb_generated.dart';
+import 'src/rust/api.dart';
 
-void main() {
+Future<void> main() async {
+  await RustLib.init();
   runApp(const MyApp());
 }
 
@@ -55,6 +58,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  String _rustResult = '';
 
   void _incrementCounter() {
     setState(() {
@@ -64,6 +68,13 @@ class _MyHomePageState extends State<MyHomePage> {
       // _counter without calling setState(), then the build method would not be
       // called again, and so nothing would appear to happen.
       _counter++;
+    });
+  }
+
+  Future<void> _callRust() async {
+    final result = await greet();
+    setState(() {
+      _rustResult = result;
     });
   }
 
@@ -104,6 +115,11 @@ class _MyHomePageState extends State<MyHomePage> {
           // wireframe for each widget.
           mainAxisAlignment: .center,
           children: [
+            ElevatedButton(
+              onPressed: _callRust,
+              child: const Text('Call Rust'),
+            ),
+            Text(_rustResult),
             const Text('You have pushed the button this many times:'),
             Text(
               '$_counter',
