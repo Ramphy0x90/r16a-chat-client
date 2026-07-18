@@ -10,6 +10,7 @@ class AppTheme {
       primary: ZmeyColors.lightAccentGold,
       secondary: ZmeyColors.lightAccentMaroon,
       onSurface: ZmeyColors.lightTextPrimary,
+      onSurfaceVariant: ZmeyColors.lightTextSecondary,
     ),
   );
 
@@ -21,6 +22,7 @@ class AppTheme {
       primary: ZmeyColors.darkAccentMaroon,
       secondary: ZmeyColors.darkAccentGold,
       onSurface: ZmeyColors.darkTextPrimary,
+      onSurfaceVariant: ZmeyColors.darkTextSecondary,
     ),
   );
 }
