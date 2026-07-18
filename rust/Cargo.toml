@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 flutter_rust_bridge = "=2.12.0"
+matrix-sdk = "0.18.0"
 
 [lib]
 crate-type = ["cdylib", "staticlib"]

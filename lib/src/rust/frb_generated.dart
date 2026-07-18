@@ -3,7 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
-import 'api.dart';
+import 'api/auth.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -64,7 +64,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1349737897;
+  int get rustContentHash => 355718573;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -76,7 +76,11 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<String> crateApiGreet();
+  Future<String> crateApiAuthLogin({
+    required String homeserverUrl,
+    required String username,
+    required String password,
+  });
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -88,11 +92,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<String> crateApiGreet() {
+  Future<String> crateApiAuthLogin({
+    required String homeserverUrl,
+    required String username,
+    required String password,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(homeserverUrl, serializer);
+          sse_encode_String(username, serializer);
+          sse_encode_String(password, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -102,17 +113,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateApiGreetConstMeta,
-        argValues: [],
+        constMeta: kCrateApiAuthLoginConstMeta,
+        argValues: [homeserverUrl, username, password],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiGreetConstMeta =>
-      const TaskConstMeta(debugName: "greet", argNames: []);
+  TaskConstMeta get kCrateApiAuthLoginConstMeta => const TaskConstMeta(
+    debugName: "login",
+    argNames: ["homeserverUrl", "username", "password"],
+  );
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -133,12 +146,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void dco_decode_unit(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return;
-  }
-
-  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -156,11 +163,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   int sse_decode_u_8(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8();
-  }
-
-  @protected
-  void sse_decode_unit(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
   }
 
   @protected
@@ -195,11 +197,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_u_8(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self);
-  }
-
-  @protected
-  void sse_encode_unit(void self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
   }
 
   @protected
