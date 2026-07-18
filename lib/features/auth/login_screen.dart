@@ -1,16 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/features/auth/auth_scaffold.dart';
 import 'package:r16a_chat_client/features/auth/widgets/login_form.dart';
+import 'package:r16a_chat_client/src/rust/api/auth.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _isLoading = false;
+  String? _errorMsg;
 
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
       title: "Welcome back",
       subtitle: "Sign in to your account",
-      formContent: LoginForm(onSubmit: (username, password) {}),
+      formContent: LoginForm(
+        onSubmit: _handleLogin,
+        isLoading: _isLoading,
+        errorMsg: _errorMsg,
+      ),
     );
+  }
+
+  Future<void> _handleLogin(String username, String password) async {
+    setState(() {
+      _isLoading = true;
+      _errorMsg = "";
+    });
+
+    try {
+      final result = await login(
+        homeserverUrl: AppConstants.defaultHomeserverUrl,
+        username: username,
+        password: password,
+      );
+      // TODO: Navigator.pushReplacement(...) to chat list, once it exists
+    } catch (e) {
+      setState(() => _errorMsg = 'Login failed: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 }

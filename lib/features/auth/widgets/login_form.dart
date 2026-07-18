@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:r16a_chat_client/features/auth/widgets/zmey_progress.dart';
 import 'package:r16a_chat_client/features/auth/widgets/zmey_text_field.dart';
 
 /// Widget for auth forms
 class LoginForm extends StatefulWidget {
   final void Function(String username, String password) onSubmit;
-  const LoginForm({super.key, required this.onSubmit});
+  final bool isLoading;
+  final String? errorMsg;
+
+  const LoginForm({
+    super.key,
+    required this.onSubmit,
+    this.isLoading = false,
+    this.errorMsg,
+  });
 
   @override
   State<LoginForm> createState() => _FormPanelState();
@@ -24,6 +33,7 @@ class _FormPanelState extends State<LoginForm> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context);
+    final bool isLoginInProgress = widget.isLoading;
 
     return Column(
       spacing: 40,
@@ -31,12 +41,22 @@ class _FormPanelState extends State<LoginForm> {
         Column(
           spacing: 25,
           children: [
-            ZmeyTextField(label: "Username", controller: _usernameController),
+            ZmeyTextField(
+              label: "Username",
+              controller: _usernameController,
+              disabled: isLoginInProgress,
+            ),
             ZmeyTextField(
               label: "Password",
               controller: _passwordController,
+              disabled: isLoginInProgress,
               obscureText: true,
             ),
+            if (widget.errorMsg != null && widget.errorMsg!.isNotEmpty)
+              Text(
+                widget.errorMsg!,
+                style: TextStyle(color: colors.colorScheme.error),
+              ),
           ],
         ),
         SizedBox(
@@ -45,11 +65,13 @@ class _FormPanelState extends State<LoginForm> {
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.colorScheme.primary,
             ),
-            onPressed: _handleSubmit,
-            child: Text(
-              "Sign in",
-              style: TextStyle(color: colors.colorScheme.surface),
-            ),
+            onPressed: isLoginInProgress ? null : _handleSubmit,
+            child: isLoginInProgress
+                ? const ZmeyProgress()
+                : Text(
+                    "Sign in",
+                    style: TextStyle(color: colors.colorScheme.surface),
+                  ),
           ),
         ),
       ],
