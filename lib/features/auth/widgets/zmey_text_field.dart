@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class ZmeyTextField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
+  final bool disabled;
   final bool obscureText;
 
   const ZmeyTextField({
     super.key,
     required this.label,
     required this.controller,
+    this.disabled = false,
     this.obscureText = false,
   });
 
@@ -21,6 +23,7 @@ class ZmeyTextField extends StatelessWidget {
         Text(label, style: Theme.of(context).textTheme.labelMedium),
         TextField(
           controller: controller,
+          enabled: !disabled,
           obscureText: obscureText,
           decoration: InputDecoration(
             labelText: label,
