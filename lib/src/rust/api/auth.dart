@@ -15,3 +15,11 @@ Future<String> login({
   username: username,
   password: password,
 );
+
+Future<bool> restoreSession({
+  required String homeserverUrl,
+  required String sessionJson,
+}) => RustLib.instance.api.crateApiAuthRestoreSession(
+  homeserverUrl: homeserverUrl,
+  sessionJson: sessionJson,
+);

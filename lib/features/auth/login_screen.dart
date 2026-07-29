@@ -3,6 +3,7 @@ import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/features/auth/auth_scaffold.dart';
 import 'package:r16a_chat_client/features/auth/widgets/login_form.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
+import 'package:r16a_chat_client/services/session_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,12 +36,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await login(
+      final sessionJson = await login(
         homeserverUrl: AppConstants.defaultHomeserverUrl,
         username: username,
         password: password,
       );
-      // TODO: Navigator.pushReplacement(...) to chat list, once it exists
+
+      await SessionStorage().saveSession(sessionJson);
+
+      if (mounted) {
+        context.go('/chats');
+      }
     } catch (e) {
       setState(() => _errorMsg = 'Login failed: $e');
     } finally {
