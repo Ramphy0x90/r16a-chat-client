@@ -3,7 +3,6 @@ import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/core/router.dart';
 import 'src/rust/frb_generated.dart';
 import 'theme/app_theme.dart';
-import 'features/auth/login_screen.dart';
 
 Future<void> main() async {
   await RustLib.init();
