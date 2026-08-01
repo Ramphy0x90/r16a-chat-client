@@ -4,6 +4,7 @@ import 'package:r16a_chat_client/features/auth/auth_scaffold.dart';
 import 'package:r16a_chat_client/features/auth/widgets/login_form.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -45,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await SessionStorage().saveSession(sessionJson);
 
       if (mounted) {
-        context.go('/chats');
+        context.go(Routes.chats);
       }
     } catch (e) {
       setState(() => _errorMsg = 'Login failed: $e');
