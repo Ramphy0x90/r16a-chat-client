@@ -7,4 +7,5 @@ class AppConstants {
 class Routes {
   static const login = '/login';
   static const chats = '/chats';
+  static const settings = "/settings";
 }
