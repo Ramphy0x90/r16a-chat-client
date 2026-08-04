@@ -22,6 +22,8 @@ class AppShell extends StatelessWidget {
 }
 
 class _Navbar extends StatelessWidget {
+  final double iconSize = 25;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -31,16 +33,16 @@ class _Navbar extends StatelessWidget {
           IconButton(
             icon: SvgPicture.asset(
               'assets/images/message.svg',
-              width: 25,
-              height: 25,
+              width: iconSize,
+              height: iconSize,
             ),
             onPressed: () => context.go(Routes.chats),
           ),
           IconButton(
             icon: SvgPicture.asset(
               'assets/images/settings.svg',
-              width: 25,
-              height: 25,
+              width: iconSize,
+              height: iconSize,
             ),
             onPressed: () => context.go(Routes.settings),
           ),
