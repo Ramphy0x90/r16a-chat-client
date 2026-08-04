@@ -22,33 +22,36 @@ class AppShell extends StatelessWidget {
 }
 
 class _Navbar extends StatelessWidget {
-  final double iconSize = 25;
-
   @override
   Widget build(BuildContext context) {
     final currentPath = GoRouterState.of(context).matchedLocation;
 
     return Container(
       color: Theme.of(context).colorScheme.surface,
-      child: Column(
-        children: [
-          _NavbarIcon(
-            iconPath: 'assets/images/message.svg',
-            isActive: currentPath == Routes.chats,
-            onTap: () => context.go(Routes.chats),
-          ),
-          _NavbarIcon(
-            iconPath: 'assets/images/settings.svg',
-            isActive: currentPath == Routes.settings,
-            onTap: () => context.go(Routes.settings),
-          ),
-        ],
+      child: Padding(
+        padding: EdgeInsetsGeometry.only(top: 10),
+        child: Column(
+          children: [
+            _NavbarIcon(
+              iconPath: 'assets/images/message.svg',
+              isActive: currentPath == Routes.chats,
+              onTap: () => context.go(Routes.chats),
+            ),
+            _NavbarIcon(
+              iconPath: 'assets/images/settings.svg',
+              isActive: currentPath == Routes.settings,
+              onTap: () => context.go(Routes.settings),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _NavbarIcon extends StatelessWidget {
+  final double iconSize = 25;
+
   final String iconPath;
   final bool isActive;
   final VoidCallback onTap;
@@ -66,6 +69,8 @@ class _NavbarIcon extends StatelessWidget {
     return IconButton(
       icon: SvgPicture.asset(
         iconPath,
+        width: iconSize,
+        height: iconSize,
         colorFilter: ColorFilter.mode(
           isActive ? colors.primary : colors.onSurfaceVariant,
           BlendMode.srcIn,
