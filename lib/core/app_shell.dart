@@ -26,28 +26,61 @@ class _Navbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentPath = GoRouterState.of(context).matchedLocation;
+
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
         children: [
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/images/message.svg',
-              width: iconSize,
-              height: iconSize,
-            ),
-            onPressed: () => context.go(Routes.chats),
+          _NavbarIcon(
+            iconPath: 'assets/images/message.svg',
+            isActive: currentPath == Routes.chats,
+            onTap: () => context.go(Routes.chats),
           ),
-          IconButton(
-            icon: SvgPicture.asset(
-              'assets/images/settings.svg',
-              width: iconSize,
-              height: iconSize,
-            ),
-            onPressed: () => context.go(Routes.settings),
+          _NavbarIcon(
+            iconPath: 'assets/images/settings.svg',
+            isActive: currentPath == Routes.settings,
+            onTap: () => context.go(Routes.settings),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _NavbarIcon extends StatelessWidget {
+  final String iconPath;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _NavbarIcon({
+    required this.iconPath,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return IconButton(
+      icon: SvgPicture.asset(
+        iconPath,
+        colorFilter: ColorFilter.mode(
+          isActive ? colors.primary : colors.onSurfaceVariant,
+          BlendMode.srcIn,
+        ),
+      ),
+      style: ButtonStyle(
+        mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered)) {
+            return colors.primary.withValues(alpha: 0.1);
+          }
+          return null;
+        }),
+      ),
+      onPressed: onTap,
     );
   }
 }
