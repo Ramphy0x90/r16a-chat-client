@@ -38,19 +38,19 @@ final router = GoRouter(
           builder: (context, state) => const SettingsScreen(),
           routes: [
             GoRoute(
-              path: Routes.settingsProfile,
+              path: "profile",
               builder: (context, state) => const ProfileScreen(),
             ),
             GoRoute(
-              path: Routes.settingsSecurity,
+              path: "security",
               builder: (context, state) => const SecurityScreen(),
             ),
             GoRoute(
-              path: Routes.settingsCustomize,
+              path: "customize",
               builder: (context, state) => const CustomizeScreen(),
             ),
             GoRoute(
-              path: Routes.settingsStorage,
+              path: "storage",
               builder: (context, state) => const StorageScreen(),
             ),
           ],
