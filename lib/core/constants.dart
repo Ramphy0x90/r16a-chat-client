@@ -7,5 +7,11 @@ class AppConstants {
 class Routes {
   static const login = '/login';
   static const chats = '/chats';
+
+  /// Settings routes
   static const settings = "/settings";
+  static const settingsProfile = '/settings/profile';
+  static const settingsSecurity = '/settings/security';
+  static const settingsCustomize = '/settings/customize';
+  static const settingsStorage = '/settings/storage';
 }

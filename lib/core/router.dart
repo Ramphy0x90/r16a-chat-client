@@ -3,6 +3,10 @@ import 'package:r16a_chat_client/core/app_shell.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/features/auth/login_screen.dart';
 import 'package:r16a_chat_client/features/chat/chat_screen.dart';
+import 'package:r16a_chat_client/features/settings/screens/customize_screen.dart';
+import 'package:r16a_chat_client/features/settings/screens/profile_screen.dart';
+import 'package:r16a_chat_client/features/settings/screens/security_screen.dart';
+import 'package:r16a_chat_client/features/settings/screens/storage_screen.dart';
 import 'package:r16a_chat_client/features/settings/settings_screen.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
 
@@ -32,6 +36,24 @@ final router = GoRouter(
         GoRoute(
           path: Routes.settings,
           builder: (context, state) => const SettingsScreen(),
+          routes: [
+            GoRoute(
+              path: Routes.settingsProfile,
+              builder: (context, state) => const ProfileScreen(),
+            ),
+            GoRoute(
+              path: Routes.settingsSecurity,
+              builder: (context, state) => const SecurityScreen(),
+            ),
+            GoRoute(
+              path: Routes.settingsCustomize,
+              builder: (context, state) => const CustomizeScreen(),
+            ),
+            GoRoute(
+              path: Routes.settingsStorage,
+              builder: (context, state) => const StorageScreen(),
+            ),
+          ],
         ),
       ],
     ),
