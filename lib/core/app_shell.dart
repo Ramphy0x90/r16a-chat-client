@@ -33,12 +33,12 @@ class _Navbar extends StatelessWidget {
         child: Column(
           children: [
             _NavbarIcon(
-              iconPath: 'assets/images/message.svg',
+              iconPath: 'assets/icons/message.svg',
               isActive: currentPath == Routes.chats,
               onTap: () => context.go(Routes.chats),
             ),
             _NavbarIcon(
-              iconPath: 'assets/images/settings.svg',
+              iconPath: 'assets/icons/settings.svg',
               isActive: currentPath == Routes.settings,
               onTap: () => context.go(Routes.settings),
             ),
