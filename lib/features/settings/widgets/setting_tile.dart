@@ -29,7 +29,7 @@ class SettingTile extends StatelessWidget {
       ///   ),
       /// ),
       title: Text(title),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: SvgPicture.asset('assets/icons/arrow-go.svg'),
       onTap: onTap,
     );
   }
