@@ -1,12 +1,8 @@
-use matrix_sdk::Client;
 use matrix_sdk::authentication::matrix::MatrixSession;
+use crate::api::client::get_or_create_client;
 
 pub async fn login(homeserver_url: String, username: String, password: String) -> Result<String, String> {
-    let client = Client::builder()
-        .homeserver_url(&homeserver_url)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
+    let client = get_or_create_client(&homeserver_url).await?;
 
     client
         .matrix_auth()
@@ -24,11 +20,7 @@ pub async fn login(homeserver_url: String, username: String, password: String) -
 }
 
 pub async fn restore_session(homeserver_url: String, session_json: String) -> Result<bool, String> {
-    let client = Client::builder()
-        .homeserver_url(&homeserver_url)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
+    let client = get_or_create_client(&homeserver_url).await?;
 
     let session: MatrixSession = serde_json::from_str(&session_json).map_err(|e| e.to_string())?;
 
