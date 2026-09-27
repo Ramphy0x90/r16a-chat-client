@@ -8,6 +8,11 @@ pub struct RoomSummary {
 pub async fn get_rooms(homeserver_url: String) -> Result<Vec<RoomSummary>, String> {
     let client = get_or_create_client(&homeserver_url).await?;
 
+    // TODO: handle sync better
+    client.sync_once(matrix_sdk::config::SyncSettings::default())
+        .await
+        .map_err(|e| e.to_string())?;
+
     let rooms = client
         .rooms()
         .into_iter()
