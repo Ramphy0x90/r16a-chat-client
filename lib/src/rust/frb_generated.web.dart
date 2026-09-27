@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/auth.dart';
+import 'api/rooms.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -30,6 +31,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<RoomSummary> dco_decode_list_room_summary(dynamic raw);
+
+  @protected
+  RoomSummary dco_decode_room_summary(dynamic raw);
+
+  @protected
   int dco_decode_u_8(dynamic raw);
 
   @protected
@@ -40,6 +47,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<RoomSummary> sse_decode_list_room_summary(SseDeserializer deserializer);
+
+  @protected
+  RoomSummary sse_decode_room_summary(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -58,6 +71,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_room_summary(
+    List<RoomSummary> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_room_summary(RoomSummary self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
