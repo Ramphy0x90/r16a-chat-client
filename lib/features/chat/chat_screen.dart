@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/src/rust/api/rooms.dart';
 
@@ -37,9 +38,7 @@ class _ChatScreenState extends State<ChatScreen> {
           final room = _rooms[index];
           return ListTile(
             title: Text(room.name),
-            onTap: () {
-              // navigate into the room, later
-            },
+            onTap: () => context.go(Routes.room(room.id), extra: room.name),
           );
         },
       ),

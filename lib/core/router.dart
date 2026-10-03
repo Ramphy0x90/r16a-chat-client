@@ -3,6 +3,7 @@ import 'package:r16a_chat_client/core/app_shell.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/features/auth/login_screen.dart';
 import 'package:r16a_chat_client/features/chat/chat_screen.dart';
+import 'package:r16a_chat_client/features/chat/room_screen.dart';
 import 'package:r16a_chat_client/features/settings/screens/customize_screen.dart';
 import 'package:r16a_chat_client/features/settings/screens/profile_screen.dart';
 import 'package:r16a_chat_client/features/settings/screens/security_screen.dart';
@@ -32,6 +33,15 @@ final router = GoRouter(
         GoRoute(
           path: Routes.chats,
           builder: (context, state) => const ChatScreen(),
+          routes: [
+            GoRoute(
+              path: ":roomId",
+              builder: (context, state) => RoomScreen(
+                roomId: state.pathParameters['roomId']!,
+                roomName: state.extra as String? ?? 'Chat',
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: Routes.settings,
