@@ -3,6 +3,7 @@ import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/features/auth/auth_scaffold.dart';
 import 'package:r16a_chat_client/features/auth/widgets/login_form.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
+import 'package:r16a_chat_client/src/rust/api/sync.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
 import 'package:go_router/go_router.dart';
 
@@ -44,6 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await SessionStorage().saveSession(sessionJson);
+      await startSync(homeserverUrl: AppConstants.defaultHomeserverUrl);
 
       if (mounted) {
         context.go(Routes.chats);

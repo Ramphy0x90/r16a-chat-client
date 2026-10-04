@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:r16a_chat_client/core/constants.dart';
@@ -14,11 +16,18 @@ class _ChatScreenState extends State<ChatScreen> {
   List<RoomSummary> _rooms = [];
   bool _isLoading = true;
   String? _errorMessage;
+  StreamSubscription<List<RoomSummary>>? _roomsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadRooms();
+    _watchRooms();
+  }
+
+  @override
+  void dispose() {
+    _roomsSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -29,6 +38,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (_errorMessage != null) {
       return Scaffold(body: Center(child: Text(_errorMessage!)));
+    }
+
+    if (_rooms.isEmpty) {
+      return const Scaffold(body: Center(child: Text('No chats yet')));
     }
 
     return Scaffold(
@@ -45,20 +58,25 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _loadRooms() async {
-    try {
-      final rooms = await getRooms(
-        homeserverUrl: AppConstants.defaultHomeserverUrl,
-      );
-      setState(() {
-        _rooms = rooms;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = "Failed to load rooms: $e";
-        _isLoading = false;
-      });
-    }
+  /// Emits right away from the local store, then on every sync that touches a room.
+  void _watchRooms() {
+    _roomsSubscription =
+        watchRooms(homeserverUrl: AppConstants.defaultHomeserverUrl).listen(
+          (rooms) {
+            if (!mounted) return;
+            setState(() {
+              _rooms = rooms;
+              _errorMessage = null;
+              _isLoading = false;
+            });
+          },
+          onError: (Object e) {
+            if (!mounted) return;
+            setState(() {
+              _errorMessage = "Failed to load rooms: $e";
+              _isLoading = false;
+            });
+          },
+        );
   }
 }

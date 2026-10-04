@@ -6,7 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_room`
+// These functions are ignored because they are not marked as `pub`: `get_room`, `to_summary`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
 /// Latest `limit` text messages of a room, oldest first.
 Future<List<MessageSummary>> getMessages({
@@ -17,6 +18,17 @@ Future<List<MessageSummary>> getMessages({
   homeserverUrl: homeserverUrl,
   roomId: roomId,
   limit: limit,
+);
+
+/// Streams new text messages of a room as they arrive through the sync loop
+/// (already decrypted). Stops when Dart cancels the stream.
+/// Errors go into the stream (a returned Err would never reach the Dart listener).
+Stream<MessageSummary> watchRoomMessages({
+  required String homeserverUrl,
+  required String roomId,
+}) => RustLib.instance.api.crateApiMessagesWatchRoomMessages(
+  homeserverUrl: homeserverUrl,
+  roomId: roomId,
 );
 
 /// Sends a plain-text message, returns its event ID.

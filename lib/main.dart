@@ -9,6 +9,7 @@ import 'theme/app_theme.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
 import 'package:r16a_chat_client/src/rust/api/client.dart';
+import 'package:r16a_chat_client/src/rust/api/sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,7 @@ Future<void> main() async {
     passphrase: await SessionStorage().loadOrCreateStorePassphrase(),
   );
 
+  var sessionRestored = sessionJson != null;
   if (sessionJson != null) {
     try {
       await restoreSession(
@@ -37,7 +39,13 @@ Future<void> main() async {
       );
     } catch (e) {
       await SessionStorage().clearSession();
+      sessionRestored = false;
     }
+  }
+
+  if (sessionRestored) {
+    // Runs in the background; not awaiting the first sync keeps startup offline-friendly.
+    await startSync(homeserverUrl: AppConstants.defaultHomeserverUrl);
   }
 
   runApp(const MyApp());

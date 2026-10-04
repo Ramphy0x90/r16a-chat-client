@@ -6,8 +6,13 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-Future<List<RoomSummary>> getRooms({required String homeserverUrl}) =>
-    RustLib.instance.api.crateApiRoomsGetRooms(homeserverUrl: homeserverUrl);
+// These functions are ignored because they are not marked as `pub`: `room_summaries`
+
+/// Streams the room list: once right away (from the local store), then again
+/// whenever the sync loop updates any room. Stops when Dart cancels the stream.
+/// Errors go into the stream (a returned Err would never reach the Dart listener).
+Stream<List<RoomSummary>> watchRooms({required String homeserverUrl}) =>
+    RustLib.instance.api.crateApiRoomsWatchRooms(homeserverUrl: homeserverUrl);
 
 class RoomSummary {
   final String id;

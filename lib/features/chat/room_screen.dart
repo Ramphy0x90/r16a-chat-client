@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/core/detail_scaffold.dart';
@@ -22,11 +24,20 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   String? _errorMessage;
+  StreamSubscription<MessageSummary>? _newMessagesSubscription;
 
   @override
   void initState() {
     super.initState();
+    // Subscribe before loading history so nothing arriving in between is missed.
+    _watchNewMessages();
     _loadMessages();
+  }
+
+  @override
+  void dispose() {
+    _newMessagesSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -65,7 +76,12 @@ class _RoomScreenState extends State<RoomScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _messages = messages;
+        // Keep live messages that arrived while history was loading.
+        final loadedIds = messages.map((m) => m.eventId).toSet();
+        _messages = [
+          ...messages,
+          ..._messages.where((m) => !loadedIds.contains(m.eventId)),
+        ];
         _errorMessage = null;
       });
     } catch (e) {
@@ -83,6 +99,22 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  void _watchNewMessages() {
+    _newMessagesSubscription =
+        watchRoomMessages(
+          homeserverUrl: AppConstants.defaultHomeserverUrl,
+          roomId: widget.roomId,
+        ).listen(
+          (message) {
+            if (!mounted) return;
+            if (_messages.any((m) => m.eventId == message.eventId)) return;
+            setState(() => _messages = [..._messages, message]);
+          },
+          // Setup errors (e.g. unknown room) also fail _loadMessages, which shows them.
+          onError: (Object _) {},
+        );
+  }
+
   Future<bool> _handleSend(String text) async {
     // Guard here, the composer's isSending prop lags a frame behind.
     if (_isSending) return false;
@@ -94,8 +126,7 @@ class _RoomScreenState extends State<RoomScreen> {
         roomId: widget.roomId,
         body: text,
       );
-      // No live sync yet, so re-fetch to show the sent message.
-      await _loadMessages();
+      // The sent message shows up through the sync loop like any other.
       return true;
     } catch (e) {
       if (mounted) {
