@@ -25,6 +25,8 @@ class ZmeyTextField extends StatelessWidget {
           controller: controller,
           enabled: !disabled,
           obscureText: obscureText,
+          // Maroon primary is near-invisible as a cursor in dark mode.
+          cursorColor: Theme.of(context).colorScheme.secondary,
           decoration: InputDecoration(
             labelText: label,
             floatingLabelBehavior: FloatingLabelBehavior.never,

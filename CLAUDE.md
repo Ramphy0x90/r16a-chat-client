@@ -39,11 +39,12 @@ lib/
 rust/
   src/
     lib.rs
-    api.rs       # pub mod auth; pub mod client; pub mod messages; pub mod rooms; pub mod sync;
+    api.rs       # pub mod auth; pub mod client; pub mod messages; pub mod profile; pub mod rooms; pub mod sync;
     api/
       client.rs    # shared Client singleton + persistent store config
       auth.rs
       messages.rs  # get_messages, watch_room_messages, send_text_message
+      profile.rs   # get_profile, set_display_name, set_avatar, remove_avatar
       rooms.rs     # watch_rooms
       sync.rs      # start_sync (background sync loop)
 ```
@@ -79,6 +80,7 @@ pub mod api;
 pub mod auth;
 pub mod client;
 pub mod messages;
+pub mod profile;
 pub mod rooms;
 pub mod sync;
 ```
@@ -132,6 +134,10 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 - Screens hold the `StreamSubscription` and cancel it in `dispose()`. Rust detects the cancel because `sink.add(...)` starts returning `Err`, and then tears down its side (breaks the loop / removes the event handler).
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
 - `RoomScreen` subscribes to new messages *before* loading history and merges/dedupes by `eventId`, so nothing is lost in between. Sent messages are not re-fetched; they arrive back through sync.
+
+### Avatar uploads are re-encoded (privacy, don't remove)
+
+`set_avatar` decodes the picked image with the `image` crate, applies EXIF orientation, downscales to ≤512px and re-encodes as PNG before uploading. Avatars are public and **not** E2EE (Synapse keeps the original file downloadable), so uploading the raw file would leak EXIF/GPS. This also sniffs the real format from the bytes and rejects oversized dimensions (decompression bombs). Animated GIFs become a still image.
 
 ### Error handling across the bridge
 
@@ -196,7 +202,7 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 - `watch_room_messages` event handlers are removed lazily — only on the next message in that room after Dart cancels the stream.
 - Room screen: only `m.text` messages are shown (images/files/notices/emotes/edits/reactions and undecryptable events are skipped), no back-pagination beyond the latest 50, no date separators. Room name in the title comes from go_router `extra` (falls back to "Chat" on direct navigation).
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
-- The four settings sub-screens (Profile, Security, Customize, Storage) are routed placeholders with no real content yet.
+- Settings sub-screens Security, Customize and Storage are routed placeholders with no real content yet. Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
 - Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; maroon `primary` makes the cursor/spinners near-invisible in dark mode app-wide (fixed locally in the room screen only); Enter always sends in the composer (no newline on mobile).
 - `DetailScaffold` hand-rolls its back button (contradicts the go_router conventions above) and its SVG isn't theme-tinted.
 

@@ -9,6 +9,7 @@
 import 'api/auth.dart';
 import 'api/client.dart';
 import 'api/messages.dart';
+import 'api/profile.dart';
 import 'api/rooms.dart';
 import 'api/sync.dart';
 import 'dart:async';
@@ -50,6 +51,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MessageSummary> dco_decode_list_message_summary(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -57,6 +61,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageSummary dco_decode_message_summary(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  ProfileInfo dco_decode_profile_info(dynamic raw);
 
   @protected
   RoomSummary dco_decode_room_summary(dynamic raw);
@@ -98,6 +111,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
@@ -105,6 +121,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageSummary sse_decode_message_summary(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  ProfileInfo sse_decode_profile_info(SseDeserializer deserializer);
 
   @protected
   RoomSummary sse_decode_room_summary(SseDeserializer deserializer);
@@ -155,6 +180,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -171,6 +199,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     MessageSummary self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_profile_info(ProfileInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_room_summary(RoomSummary self, SseSerializer serializer);

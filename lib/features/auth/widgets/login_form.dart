@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:r16a_chat_client/features/auth/widgets/zmey_progress.dart';
-import 'package:r16a_chat_client/features/auth/widgets/zmey_text_field.dart';
+import 'package:r16a_chat_client/core/zmey_progress.dart';
+import 'package:r16a_chat_client/core/zmey_text_field.dart';
 
 /// Widget for auth forms
 class LoginForm extends StatefulWidget {
