@@ -6,13 +6,15 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build`, `check_size`, `download`, `media_info`, `parse`, `preview_request`
+// These functions are ignored because they are not marked as `pub`: `build`, `check_size`, `download`, `is_bidi_control`, `media_info`, `parse`, `preview_request`, `sanitize_filename`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `MediaHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
-/// Small version for the timeline: the sender's thumbnail if there is one, else a
+/// Small PNG for the timeline, from the sender's thumbnail if there is one, else a
 /// server-side thumbnail (unencrypted), else the full file (encrypted, size-capped:
-/// the server can't thumbnail what it can't decrypt). Cached in the store.
+/// the server can't thumbnail what it can't decrypt). The download is cached in the
+/// store; it's always re-encoded here so Flutter never decodes untrusted bytes at
+/// whatever size they claim.
 Future<Uint8List> loadMediaPreview({
   required String homeserverUrl,
   required String handle,
@@ -21,7 +23,8 @@ Future<Uint8List> loadMediaPreview({
   handle: handle,
 );
 
-/// The full file, for the image viewer. Cached in the store.
+/// The full file, for the image viewer. Cached in the store. Returned as-is (full
+/// quality for zooming), but only after checking its real pixel dimensions.
 Future<Uint8List> loadMedia({
   required String homeserverUrl,
   required String handle,
@@ -32,6 +35,10 @@ Future<Uint8List> loadMedia({
 
 /// Downloads (and decrypts) the full file to `path`. Not cached: saved files can
 /// be large and would bloat the store.
+///
+/// Refuses to overwrite: the Linux save dialog doesn't ask before replacing a
+/// file, and the suggested name comes from the sender. `create_new` also refuses
+/// to follow a symlink at `path`.
 Future<void> saveMedia({
   required String homeserverUrl,
   required String handle,
@@ -46,6 +53,8 @@ class MediaInfo {
   /// Opaque to Dart, pass it back to `load_media_preview` / `load_media` / `save_media`.
   /// Holds the decryption key of encrypted media: never log or persist it.
   final String handle;
+
+  /// Sanitized (see `sanitize_filename`), safe to display and to suggest when saving.
   final String filename;
   final String? mimetype;
 

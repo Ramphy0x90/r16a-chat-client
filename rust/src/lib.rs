@@ -3,3 +3,4 @@
 
 pub mod frb_generated;
 pub mod api;
+mod images;

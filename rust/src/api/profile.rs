@@ -1,20 +1,16 @@
-use std::io::Cursor;
 use std::time::Duration;
 
-use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
-use image::imageops::FilterType;
 use matrix_sdk::media::{MediaFormat, MediaThumbnailSettings};
 use matrix_sdk::ruma::UInt;
 use crate::api::client::get_or_create_client;
 use crate::frb_generated::FLUTTER_RUST_BRIDGE_HANDLER;
+use crate::images::reencode_png;
 
 /// Avatars are only shown small, so fetch a thumbnail instead of the full upload.
 const AVATAR_THUMBNAIL_SIZE: u32 = 256;
 /// Longest side of the avatar we upload.
 const AVATAR_UPLOAD_SIZE: u32 = 512;
 const MAX_AVATAR_INPUT_BYTES: usize = 5 * 1024 * 1024;
-/// Rejects decompression bombs (tiny files with huge dimensions) before decoding.
-const MAX_AVATAR_INPUT_DIMENSION: u32 = 8192;
 const AVATAR_UPLOAD_RETRIES: usize = 3;
 const AVATAR_UPLOAD_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -85,78 +81,10 @@ pub async fn remove_avatar(homeserver_url: String) -> Result<(), String> {
     client.account().set_avatar_url(None).await.map_err(|e| e.to_string())
 }
 
-/// Decodes the image (format sniffed from its bytes, not trusted from the file name),
-/// downscales it and encodes it as PNG. Re-encoding drops all metadata (EXIF/GPS,
-/// camera info, embedded thumbnails), so the orientation is applied to the pixels first.
+/// Size check first (cheap), then decode + re-encode, see `images::reencode_png`.
 fn reencode_avatar(data: &[u8]) -> Result<Vec<u8>, String> {
     if data.len() > MAX_AVATAR_INPUT_BYTES {
         return Err("Image is too large (max 5 MB)".to_string());
     }
-
-    let mut reader = ImageReader::new(Cursor::new(data))
-        .with_guessed_format()
-        .map_err(|e| e.to_string())?;
-    let mut limits = Limits::default();
-    limits.max_image_width = Some(MAX_AVATAR_INPUT_DIMENSION);
-    limits.max_image_height = Some(MAX_AVATAR_INPUT_DIMENSION);
-    reader.limits(limits);
-
-    let mut decoder = reader.into_decoder().map_err(|e| e.to_string())?;
-    let orientation = decoder.orientation().map_err(|e| e.to_string())?;
-    let mut image = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
-    image.apply_orientation(orientation);
-
-    if image.width() > AVATAR_UPLOAD_SIZE || image.height() > AVATAR_UPLOAD_SIZE {
-        image = image.resize(AVATAR_UPLOAD_SIZE, AVATAR_UPLOAD_SIZE, FilterType::Lanczos3);
-    }
-
-    let mut png = Vec::new();
-    image
-        .write_to(Cursor::new(&mut png), ImageFormat::Png)
-        .map_err(|e| e.to_string())?;
-    Ok(png)
+    reencode_png(data, AVATAR_UPLOAD_SIZE)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn encode(image: &DynamicImage, format: ImageFormat) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        image.write_to(Cursor::new(&mut bytes), format).unwrap();
-        bytes
-    }
-
-    #[test]
-    fn reencode_downscales_to_png() {
-        let jpeg = encode(&DynamicImage::new_rgb8(1000, 500), ImageFormat::Jpeg);
-
-        let output = reencode_avatar(&jpeg).unwrap();
-
-        assert_eq!(image::guess_format(&output).unwrap(), ImageFormat::Png);
-        let decoded = image::load_from_memory(&output).unwrap();
-        assert_eq!((decoded.width(), decoded.height()), (512, 256));
-    }
-
-    #[test]
-    fn reencode_keeps_small_images_as_is() {
-        let png = encode(&DynamicImage::new_rgba8(64, 64), ImageFormat::Png);
-
-        let decoded = image::load_from_memory(&reencode_avatar(&png).unwrap()).unwrap();
-
-        assert_eq!((decoded.width(), decoded.height()), (64, 64));
-    }
-
-    #[test]
-    fn reencode_rejects_non_images() {
-        assert!(reencode_avatar(b"%PDF-1.7 definitely not an image").is_err());
-    }
-
-    #[test]
-    fn reencode_rejects_oversized_dimensions() {
-        let png = encode(&DynamicImage::new_luma8(MAX_AVATAR_INPUT_DIMENSION + 1, 1), ImageFormat::Png);
-
-        assert!(reencode_avatar(&png).is_err());
-    }
-}
-
