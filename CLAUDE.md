@@ -199,7 +199,7 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 
 - Sync status isn't surfaced to Dart — if the loop stops (e.g. token revoked → `M_UNKNOWN_TOKEN`), the UI silently stops updating. Ties into the next item.
 - No real session *validity* check — the router guard only checks that a session exists in local storage, not that it's still valid server-side.
-- Logout exists in Rust (`auth::logout`) but has no UI yet (no button, no `clearSession` + navigation flow). If the server-side logout fails, the device lingers in the server's device list.
+- Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; there's no key backup yet, so old encrypted history is unreadable after logging back in (the confirm dialog says so). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
 - `watch_room_messages` event handlers are removed lazily — only on the next message in that room after Dart cancels the stream.
 - Room screen: only `m.text` messages are shown (images/files/notices/emotes/edits/reactions and undecryptable events are skipped), no back-pagination beyond the latest 50, no date separators. Room name in the title comes from go_router `extra` (falls back to "Chat" on direct navigation).
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
