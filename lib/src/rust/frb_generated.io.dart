@@ -60,6 +60,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ReactionSummary> dco_decode_list_reaction_summary(dynamic raw);
+
+  @protected
   List<RoomSummary> dco_decode_list_room_summary(dynamic raw);
 
   @protected
@@ -78,6 +81,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ProfileInfo dco_decode_profile_info(dynamic raw);
 
   @protected
+  ReactionSummary dco_decode_reaction_summary(dynamic raw);
+
+  @protected
   RoomSummary dco_decode_room_summary(dynamic raw);
 
   @protected
@@ -85,6 +91,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_16(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   int dco_decode_u_8(dynamic raw);
@@ -133,6 +142,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ReactionSummary> sse_decode_list_reaction_summary(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<RoomSummary> sse_decode_list_room_summary(SseDeserializer deserializer);
 
   @protected
@@ -151,6 +165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ProfileInfo sse_decode_profile_info(SseDeserializer deserializer);
 
   @protected
+  ReactionSummary sse_decode_reaction_summary(SseDeserializer deserializer);
+
+  @protected
   RoomSummary sse_decode_room_summary(SseDeserializer deserializer);
 
   @protected
@@ -158,6 +175,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_8(SseDeserializer deserializer);
@@ -217,6 +237,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_reaction_summary(
+    List<ReactionSummary> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_room_summary(
     List<RoomSummary> self,
     SseSerializer serializer,
@@ -244,6 +270,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_profile_info(ProfileInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_reaction_summary(
+    ReactionSummary self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_room_summary(RoomSummary self, SseSerializer serializer);
 
   @protected
@@ -251,6 +283,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

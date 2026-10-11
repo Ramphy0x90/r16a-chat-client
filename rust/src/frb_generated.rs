@@ -770,6 +770,20 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::messages::ReactionSummary> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::messages::ReactionSummary>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::rooms::RoomSummary> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -807,6 +821,9 @@ impl SseDecode for crate::api::messages::MessageSummary {
         let mut var_body = <String>::sse_decode(deserializer);
         let mut var_timestampMs = <i64>::sse_decode(deserializer);
         let mut var_isOwn = <bool>::sse_decode(deserializer);
+        let mut var_isEdited = <bool>::sse_decode(deserializer);
+        let mut var_reactions =
+            <Vec<crate::api::messages::ReactionSummary>>::sse_decode(deserializer);
         return crate::api::messages::MessageSummary {
             id: var_id,
             kind: var_kind,
@@ -814,6 +831,8 @@ impl SseDecode for crate::api::messages::MessageSummary {
             body: var_body,
             timestamp_ms: var_timestampMs,
             is_own: var_isOwn,
+            is_edited: var_isEdited,
+            reactions: var_reactions,
         };
     }
 }
@@ -854,6 +873,20 @@ impl SseDecode for crate::api::profile::ProfileInfo {
     }
 }
 
+impl SseDecode for crate::api::messages::ReactionSummary {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_key = <String>::sse_decode(deserializer);
+        let mut var_count = <u32>::sse_decode(deserializer);
+        let mut var_reactedByMe = <bool>::sse_decode(deserializer);
+        return crate::api::messages::ReactionSummary {
+            key: var_key,
+            count: var_count,
+            reacted_by_me: var_reactedByMe,
+        };
+    }
+}
+
 impl SseDecode for crate::api::rooms::RoomSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -885,6 +918,13 @@ impl SseDecode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u16::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
     }
 }
 
@@ -980,6 +1020,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::messages::MessageSummary {
             self.body.into_into_dart().into_dart(),
             self.timestamp_ms.into_into_dart().into_dart(),
             self.is_own.into_into_dart().into_dart(),
+            self.is_edited.into_into_dart().into_dart(),
+            self.reactions.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1014,6 +1056,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::profile::ProfileInfo>
     for crate::api::profile::ProfileInfo
 {
     fn into_into_dart(self) -> crate::api::profile::ProfileInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::messages::ReactionSummary {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.key.into_into_dart().into_dart(),
+            self.count.into_into_dart().into_dart(),
+            self.reacted_by_me.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::messages::ReactionSummary
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::messages::ReactionSummary>
+    for crate::api::messages::ReactionSummary
+{
+    fn into_into_dart(self) -> crate::api::messages::ReactionSummary {
         self
     }
 }
@@ -1148,6 +1212,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::messages::ReactionSummary> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::messages::ReactionSummary>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::rooms::RoomSummary> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1187,6 +1261,8 @@ impl SseEncode for crate::api::messages::MessageSummary {
         <String>::sse_encode(self.body, serializer);
         <i64>::sse_encode(self.timestamp_ms, serializer);
         <bool>::sse_encode(self.is_own, serializer);
+        <bool>::sse_encode(self.is_edited, serializer);
+        <Vec<crate::api::messages::ReactionSummary>>::sse_encode(self.reactions, serializer);
     }
 }
 
@@ -1216,6 +1292,15 @@ impl SseEncode for crate::api::profile::ProfileInfo {
         <String>::sse_encode(self.user_id, serializer);
         <Option<String>>::sse_encode(self.display_name, serializer);
         <Option<Vec<u8>>>::sse_encode(self.avatar, serializer);
+    }
+}
+
+impl SseEncode for crate::api::messages::ReactionSummary {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.key, serializer);
+        <u32>::sse_encode(self.count, serializer);
+        <bool>::sse_encode(self.reacted_by_me, serializer);
     }
 }
 
@@ -1250,6 +1335,13 @@ impl SseEncode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u16::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
     }
 }
 

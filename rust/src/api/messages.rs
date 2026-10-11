@@ -3,9 +3,9 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 use eyeball_im::Vector;
 use futures_util::StreamExt;
 use matrix_sdk::Client;
-use matrix_sdk::ruma::RoomId;
+use matrix_sdk::ruma::{RoomId, UserId};
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
-use matrix_sdk_ui::timeline::{MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
+use matrix_sdk_ui::timeline::{MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
 use crate::api::client::{get_or_create_client, track_task};
 use crate::frb_generated::StreamSink;
 
@@ -41,6 +41,18 @@ pub struct MessageSummary {
     pub body: String,
     pub timestamp_ms: i64,
     pub is_own: bool,
+    /// Edits are already applied to `body`, this only drives the "(edited)" label.
+    pub is_edited: bool,
+    /// In the order they were first added.
+    pub reactions: Vec<ReactionSummary>,
+}
+
+#[derive(Clone)]
+pub struct ReactionSummary {
+    /// Usually an emoji, but any string is allowed.
+    pub key: String,
+    pub count: u32,
+    pub reacted_by_me: bool,
 }
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
@@ -62,8 +74,9 @@ pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: 
         timelines.insert(room_id, Arc::downgrade(&timeline));
     }
 
+    let own_user_id = timeline.room().own_user_id().to_owned();
     let (mut items, mut updates) = timeline.subscribe().await;
-    if sink.add(summaries(&items)).is_err() {
+    if sink.add(summaries(&items, &own_user_id)).is_err() {
         return;
     }
 
@@ -75,7 +88,7 @@ pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: 
                 diff.apply(&mut items);
             }
             // Sending fails once Dart cancelled the stream.
-            if sink.add(summaries(&items)).is_err() {
+            if sink.add(summaries(&items, &own_user_id)).is_err() {
                 break;
             }
         }
@@ -99,13 +112,14 @@ pub async fn paginate_backwards(room_id: String, count: u16) -> Result<bool, Str
         .and_then(Weak::upgrade)
         .ok_or_else(|| format!("Room {room_id} isn't being watched"))?;
 
-    let before = summaries(&timeline.items().await).len();
+    let own_user_id = timeline.room().own_user_id();
+    let before = summaries(&timeline.items().await, own_user_id).len();
     for _ in 0..MAX_PAGINATION_ROUNDS {
         let reached_start = timeline.paginate_backwards(count).await.map_err(|e| e.to_string())?;
         if reached_start {
             return Ok(true);
         }
-        if summaries(&timeline.items().await).len() > before {
+        if summaries(&timeline.items().await, own_user_id).len() > before {
             break;
         }
     }
@@ -140,7 +154,7 @@ fn get_room(client: &Client, room_id: &str) -> Result<matrix_sdk::Room, String> 
 
 /// Message-like events only. Virtual items (date dividers, read marker) and
 /// state events (membership, room name changes...) are skipped.
-fn summaries(items: &Vector<Arc<TimelineItem>>) -> Vec<MessageSummary> {
+fn summaries(items: &Vector<Arc<TimelineItem>>, own_user_id: &UserId) -> Vec<MessageSummary> {
     items
         .iter()
         .filter_map(|item| {
@@ -156,7 +170,23 @@ fn summaries(items: &Vector<Arc<TimelineItem>>) -> Vec<MessageSummary> {
                 body,
                 timestamp_ms: i64::from(event.timestamp().0),
                 is_own: event.is_own(),
+                is_edited: content.as_message().is_some_and(|message| message.is_edited()),
+                reactions: reaction_summaries(content, own_user_id),
             })
+        })
+        .collect()
+}
+
+fn reaction_summaries(content: &MsgLikeContent, own_user_id: &UserId) -> Vec<ReactionSummary> {
+    content
+        .reactions
+        .iter()
+        // Defensive: a key with no senders left would render as a "0" chip.
+        .filter(|(_, senders)| !senders.is_empty())
+        .map(|(key, senders)| ReactionSummary {
+            key: key.clone(),
+            count: u32::try_from(senders.len()).unwrap_or(u32::MAX),
+            reacted_by_me: senders.contains_key(own_user_id),
         })
         .collect()
 }

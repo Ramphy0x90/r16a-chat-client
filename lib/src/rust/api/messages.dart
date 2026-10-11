@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `kind_and_body`, `summaries`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
@@ -75,6 +75,12 @@ class MessageSummary {
   final PlatformInt64 timestampMs;
   final bool isOwn;
 
+  /// Edits are already applied to `body`, this only drives the "(edited)" label.
+  final bool isEdited;
+
+  /// In the order they were first added.
+  final List<ReactionSummary> reactions;
+
   const MessageSummary({
     required this.id,
     required this.kind,
@@ -82,6 +88,8 @@ class MessageSummary {
     required this.body,
     required this.timestampMs,
     required this.isOwn,
+    required this.isEdited,
+    required this.reactions,
   });
 
   @override
@@ -91,7 +99,9 @@ class MessageSummary {
       sender.hashCode ^
       body.hashCode ^
       timestampMs.hashCode ^
-      isOwn.hashCode;
+      isOwn.hashCode ^
+      isEdited.hashCode ^
+      reactions.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -103,5 +113,32 @@ class MessageSummary {
           sender == other.sender &&
           body == other.body &&
           timestampMs == other.timestampMs &&
-          isOwn == other.isOwn;
+          isOwn == other.isOwn &&
+          isEdited == other.isEdited &&
+          reactions == other.reactions;
+}
+
+class ReactionSummary {
+  /// Usually an emoji, but any string is allowed.
+  final String key;
+  final int count;
+  final bool reactedByMe;
+
+  const ReactionSummary({
+    required this.key,
+    required this.count,
+    required this.reactedByMe,
+  });
+
+  @override
+  int get hashCode => key.hashCode ^ count.hashCode ^ reactedByMe.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReactionSummary &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          count == other.count &&
+          reactedByMe == other.reactedByMe;
 }
