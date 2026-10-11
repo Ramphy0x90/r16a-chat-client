@@ -103,14 +103,10 @@ class _ProfileFormState extends State<ProfileForm> {
           ],
         ),
         ElevatedButton(
-          // Via styleFrom so the disabled state (unchanged name) keeps a readable label.
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: colors.surface,
-          ),
+          // Colors (incl. the disabled state) come from the theme.
           onPressed: widget.isSaving || !_hasChanges ? null : _handleSave,
           child: widget.isSaving
-              ? ZmeyProgress(color: colors.secondary)
+              ? ZmeyProgress(color: colors.onPrimary)
               : const Text('Save'),
         ),
       ],

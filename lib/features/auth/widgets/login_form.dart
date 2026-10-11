@@ -62,16 +62,10 @@ class _FormPanelState extends State<LoginForm> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.colorScheme.primary,
-            ),
             onPressed: isLoginInProgress ? null : _handleSubmit,
             child: isLoginInProgress
-                ? const ZmeyProgress()
-                : Text(
-                    "Sign in",
-                    style: TextStyle(color: colors.colorScheme.surface),
-                  ),
+                ? ZmeyProgress(color: colors.colorScheme.onPrimary)
+                : const Text("Sign in"),
           ),
         ),
       ],

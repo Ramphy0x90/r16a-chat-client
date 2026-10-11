@@ -80,7 +80,7 @@ class MessageBubble extends StatelessWidget {
                         timeLabel,
                         style: textTheme.labelSmall?.copyWith(
                           color: isOwn
-                              ? colors.onSurface
+                              ? colors.onPrimary.withValues(alpha: 0.7)
                               : colors.onSurfaceVariant,
                         ),
                       ),
@@ -108,9 +108,10 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildBody(ColorScheme colors, String sender) {
-    // Own bubbles sit on the accent color, where onSurfaceVariant is too faint.
+    // Own bubbles sit on the accent fill (primary), so their text uses onPrimary.
+    final textColor = message.isOwn ? colors.onPrimary : colors.onSurface;
     final mutedColor = message.isOwn
-        ? colors.onSurface
+        ? colors.onPrimary.withValues(alpha: 0.7)
         : colors.onSurfaceVariant;
     final placeholderStyle = TextStyle(
       color: mutedColor,
@@ -120,7 +121,7 @@ class MessageBubble extends StatelessWidget {
     return switch (message.kind) {
       MessageKind.text => Text(
         message.body,
-        style: TextStyle(color: colors.onSurface),
+        style: TextStyle(color: textColor),
       ),
       MessageKind.notice => Text(
         message.body,
@@ -129,7 +130,7 @@ class MessageBubble extends StatelessWidget {
       // Matrix convention: the action reads as a sentence with the sender.
       MessageKind.emote => Text(
         '${_displaySender(message.sender)} ${message.body}',
-        style: TextStyle(color: colors.onSurface, fontStyle: FontStyle.italic),
+        style: TextStyle(color: textColor, fontStyle: FontStyle.italic),
       ),
       MessageKind.unableToDecrypt => Text(
         'Unable to decrypt this message',
@@ -173,7 +174,12 @@ class MessageBubble extends StatelessWidget {
       children: [
         attachment,
         if (message.body.isNotEmpty)
-          Text(message.body, style: TextStyle(color: colors.onSurface)),
+          Text(
+            message.body,
+            style: TextStyle(
+              color: message.isOwn ? colors.onPrimary : colors.onSurface,
+            ),
+          ),
       ],
     );
   }

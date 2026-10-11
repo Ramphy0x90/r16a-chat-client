@@ -7,6 +7,7 @@ import 'package:r16a_chat_client/core/router.dart';
 import 'src/rust/frb_generated.dart';
 import 'theme/app_theme.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
+import 'package:r16a_chat_client/services/theme_settings.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
 import 'package:r16a_chat_client/src/rust/api/client.dart';
 import 'package:r16a_chat_client/src/rust/api/sync.dart';
@@ -14,6 +15,7 @@ import 'package:r16a_chat_client/src/rust/api/sync.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
+  await ThemeSettings.load();
 
   final sessionJson = await SessionStorage().loadSession();
 
@@ -59,12 +61,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: AppConstants.appName,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.light,
-      routerConfig: router,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeSettings.mode,
+      builder: (context, themeMode, _) => MaterialApp.router(
+        title: AppConstants.appName,
+        theme: AppTheme.light,
+        darkTheme: AppTheme.dark,
+        themeMode: themeMode,
+        routerConfig: router,
+      ),
     );
   }
 }

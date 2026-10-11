@@ -184,7 +184,7 @@ class _NavbarIcon extends StatelessWidget {
         width: iconSize,
         height: iconSize,
         colorFilter: ColorFilter.mode(
-          isActive ? colors.primary : colors.onSurfaceVariant,
+          isActive ? colors.secondary : colors.onSurfaceVariant,
           BlendMode.srcIn,
         ),
       ),
@@ -192,7 +192,7 @@ class _NavbarIcon extends StatelessWidget {
         mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
         overlayColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.hovered)) {
-            return colors.primary.withValues(alpha: 0.1);
+            return colors.secondary.withValues(alpha: 0.1);
           }
           return null;
         }),

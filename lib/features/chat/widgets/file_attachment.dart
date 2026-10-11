@@ -7,7 +7,7 @@ class FileAttachment extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onSave;
 
-  /// Own bubbles sit on the accent color, where onSurfaceVariant is too faint.
+  /// Own bubbles use the accent fill, the row's colors adapt to it.
   final bool isOwn;
 
   const FileAttachment({
@@ -22,7 +22,11 @@ class FileAttachment extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final mutedColor = isOwn ? colors.onSurface : colors.onSurfaceVariant;
+    // Own bubbles sit on the accent fill (primary), so their text uses onPrimary.
+    final textColor = isOwn ? colors.onPrimary : colors.onSurface;
+    final mutedColor = isOwn
+        ? colors.onPrimary.withValues(alpha: 0.7)
+        : colors.onSurfaceVariant;
     final size = media.sizeBytes;
 
     return Row(
@@ -38,7 +42,7 @@ class FileAttachment extends StatelessWidget {
                 media.filename,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.onSurface),
+                style: TextStyle(color: textColor),
               ),
               if (size != null)
                 Text(
@@ -58,14 +62,14 @@ class FileAttachment extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: colors.onSurface,
+                      color: textColor,
                     ),
                   ),
                 ),
               )
             : IconButton(
                 tooltip: 'Save',
-                icon: Icon(Icons.download, color: colors.onSurface),
+                icon: Icon(Icons.download, color: textColor),
                 onPressed: onSave,
               ),
       ],

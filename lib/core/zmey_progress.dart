@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class ZmeyProgress extends StatelessWidget {
-  /// Defaults to the theme's primary color.
+  /// Defaults to the theme's progress color (the text accent). Pass onPrimary
+  /// when it sits on a filled (primary) button.
   final Color? color;
 
   const ZmeyProgress({super.key, this.color});
