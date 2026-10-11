@@ -1,11 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::api::error::ErrorKind;
 use matrix_sdk::{Client, LoopCtrl};
-use crate::api::client::get_or_create_client;
-
-static SYNC_RUNNING: AtomicBool = AtomicBool::new(false);
+use crate::api::client::{get_or_create_client, start_sync_task_once};
 
 const SYNC_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -17,15 +14,8 @@ pub async fn start_sync(homeserver_url: String) -> Result<(), String> {
     if client.user_id().is_none() {
         return Err("Cannot sync without a logged-in session".to_string());
     }
-    if SYNC_RUNNING.swap(true, Ordering::SeqCst) {
-        return Ok(());
-    }
 
-    flutter_rust_bridge::spawn(async move {
-        run_sync_loop(client).await;
-        SYNC_RUNNING.store(false, Ordering::SeqCst);
-    });
-
+    start_sync_task_once(|| flutter_rust_bridge::spawn(run_sync_loop(client)).abort_handle()).await;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 use matrix_sdk::Client;
 use tokio::sync::broadcast::error::RecvError;
-use crate::api::client::get_or_create_client;
+use crate::api::client::{get_or_create_client, track_task};
 use crate::frb_generated::StreamSink;
 
 pub struct RoomSummary {
@@ -26,7 +26,7 @@ pub async fn watch_rooms(homeserver_url: String, sink: StreamSink<Vec<RoomSummar
         return;
     }
 
-    flutter_rust_bridge::spawn(async move {
+    let task = flutter_rust_bridge::spawn(async move {
         // Lagged only means we missed some updates, the list is rebuilt fresh anyway.
         while let Ok(_) | Err(RecvError::Lagged(_)) = updates.recv().await {
             // Sending fails once Dart cancelled the stream.
@@ -35,6 +35,8 @@ pub async fn watch_rooms(homeserver_url: String, sink: StreamSink<Vec<RoomSummar
             }
         }
     });
+    // Aborted on logout, otherwise it'd wait forever on the old client's updates.
+    track_task(task.abort_handle()).await;
 }
 
 fn room_summaries(client: &Client) -> Vec<RoomSummary> {

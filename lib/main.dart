@@ -38,7 +38,10 @@ Future<void> main() async {
         sessionJson: sessionJson,
       );
     } catch (e) {
+      // The store belongs to the failed session; a new login in this run
+      // needs a fresh client and store (new device ID).
       await SessionStorage().clearSession();
+      await resetClient();
       sessionRestored = false;
     }
   }

@@ -23,3 +23,8 @@ Future<bool> restoreSession({
   homeserverUrl: homeserverUrl,
   sessionJson: sessionJson,
 );
+
+/// Invalidates the session on the server (best effort), then drops the client and
+/// deletes the local store. Always logs out locally: an offline user or an already
+/// revoked token (`M_UNKNOWN_TOKEN`) shouldn't leave the user stuck logged in.
+Future<void> logout() => RustLib.instance.api.crateApiAuthLogout();

@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_or_create_client`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `StoreConfig`
+// These functions are ignored because they are not marked as `pub`: `current_client`, `get_or_create_client`, `start_sync_task_once`, `track_task`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ClientState`, `StoreConfig`
 
 /// Must be called once at startup, before any other bridge call that needs the client.
 /// The store holds E2EE keys, so it's encrypted with `passphrase`.
@@ -16,3 +16,8 @@ Future<void> setStore({required String path, required String passphrase}) =>
       path: path,
       passphrase: passphrase,
     );
+
+/// Drops the client, stops its background tasks and deletes the store (state + E2EE keys).
+/// The next call needing a client builds a fresh one. Doesn't touch the server,
+/// see `auth::logout` for that.
+Future<void> resetClient() => RustLib.instance.api.crateApiClientResetClient();

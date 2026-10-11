@@ -95,28 +95,29 @@ Anything that returns or exposes `matrix_sdk::Client` directly must be `pub(crat
 
 ```rust
 // api/client.rs (simplified)
-static MATRIX_CLIENT: OnceLock<Client> = OnceLock::new();
+static CLIENT_STATE: Mutex<Option<ClientState>> = Mutex::const_new(None); // tokio Mutex
 static STORE_CONFIG: OnceLock<StoreConfig> = OnceLock::new();
 
-pub fn set_store(path: String, passphrase: String) -> Result<(), String> { /* sets STORE_CONFIG once */ }
-
-pub(crate) async fn get_or_create_client(svr_url: &str) -> Result<Client, String> {
-    if let Some(client) = MATRIX_CLIENT.get() {
-        return Ok(client.clone());
-    }
-    let store = STORE_CONFIG.get().ok_or("Store not configured, call set_store first".to_string())?;
-    let client = Client::builder()
-        .homeserver_url(svr_url)
-        .sqlite_store(&store.path, Some(&store.passphrase))
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
-    let _ = MATRIX_CLIENT.set(client.clone());
-    Ok(client)
+struct ClientState {
+    client: Client,
+    tasks: Vec<AbortHandle>,          // background tasks holding a Client clone
+    sync_task: Option<AbortHandle>,
 }
+
+pub fn set_store(path: String, passphrase: String) -> Result<(), String> { /* sets STORE_CONFIG once */ }
+pub async fn reset_client() -> Result<(), String> { /* aborts tasks, drops client, deletes store dir */ }
+
+pub(crate) async fn get_or_create_client(svr_url: &str) -> Result<Client, String> { /* builds under the lock if None */ }
+pub(crate) async fn current_client() -> Option<Client> { /* never creates */ }
+pub(crate) async fn track_task(task: AbortHandle) { /* aborted on reset */ }
+pub(crate) async fn start_sync_task_once(spawn: impl FnOnce() -> AbortHandle) { /* one sync loop per client */ }
 ```
 
-`Client::clone()` is cheap (it's reference-counted internally), so cloning out of the `OnceLock` on every call is fine. All `pub` API functions (`login`, `restore_session`, `watch_rooms`, etc.) should go through `get_or_create_client` rather than constructing their own `Client`.
+The client is resettable (`reset_client`, used by `auth::logout` and by `main()` when `restoreSession` fails). Any `spawn`ed task that holds a `Client` clone must be registered with `track_task` (or be the sync task), otherwise it keeps the old client and its store alive after logout. Event handlers registered on the client don't need this, they're dropped with it.
+
+`logout()` revokes the token server-side **best effort** and always resets locally (offline or already-revoked tokens must not leave the user stuck). Dart is responsible for `SessionStorage().clearSession()` and navigating to login.
+
+`Client::clone()` is cheap (it's reference-counted internally), so cloning it out of `CLIENT_STATE` on every call is fine. All `pub` API functions (`login`, `restore_session`, `watch_rooms`, etc.) should go through `get_or_create_client` rather than constructing their own `Client`.
 
 ### Persistent store (state + E2EE keys)
 
@@ -129,7 +130,7 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 
 ### Sync loop and streams
 
-- `start_sync` spawns one background `sync_with_result_callback` loop (idempotent, guarded by an `AtomicBool`). Network/server errors are retried after a delay; `M_UNKNOWN_TOKEN` stops the loop.
+- `start_sync` spawns one background `sync_with_result_callback` loop (idempotent per client, via `start_sync_task_once`). Network/server errors are retried after a delay; `M_UNKNOWN_TOKEN` stops the loop.
 - Live data reaches Dart through flutter_rust_bridge `StreamSink`s (Dart sees a `Stream<T>`): `watch_rooms` (re-emits the room list on every `subscribe_to_all_room_updates` tick) and `watch_room_messages` (per-room event handler for `OriginalSyncRoomMessageEvent`, already decrypted).
 - Screens hold the `StreamSubscription` and cancel it in `dispose()`. Rust detects the cancel because `sink.add(...)` starts returning `Err`, and then tears down its side (breaks the loop / removes the event handler).
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
@@ -198,7 +199,7 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 
 - Sync status isn't surfaced to Dart — if the loop stops (e.g. token revoked → `M_UNKNOWN_TOKEN`), the UI silently stops updating. Ties into the next item.
 - No real session *validity* check — the router guard only checks that a session exists in local storage, not that it's still valid server-side.
-- No logout / client reset. `MATRIX_CLIENT` is a `OnceLock` and can't be reset, so if `restoreSession` fails at startup and the user logs in again *in the same run*, the client still has the old store open (possible device-ID mismatch). A restart fixes it (the store is wiped when no session is saved).
+- Logout exists in Rust (`auth::logout`) but has no UI yet (no button, no `clearSession` + navigation flow). If the server-side logout fails, the device lingers in the server's device list.
 - `watch_room_messages` event handlers are removed lazily — only on the next message in that room after Dart cancels the stream.
 - Room screen: only `m.text` messages are shown (images/files/notices/emotes/edits/reactions and undecryptable events are skipped), no back-pagination beyond the latest 50, no date separators. Room name in the title comes from go_router `extra` (falls back to "Chat" on direct navigation).
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.

@@ -1,5 +1,5 @@
 use matrix_sdk::authentication::matrix::MatrixSession;
-use crate::api::client::get_or_create_client;
+use crate::api::client::{current_client, get_or_create_client, reset_client};
 
 pub async fn login(homeserver_url: String, username: String, password: String) -> Result<String, String> {
     let client = get_or_create_client(&homeserver_url).await?;
@@ -30,4 +30,16 @@ pub async fn restore_session(homeserver_url: String, session_json: String) -> Re
         .map_err(|e| e.to_string())?;
 
     Ok(true)
+}
+
+/// Invalidates the session on the server (best effort), then drops the client and
+/// deletes the local store. Always logs out locally: an offline user or an already
+/// revoked token (`M_UNKNOWN_TOKEN`) shouldn't leave the user stuck logged in.
+pub async fn logout() -> Result<(), String> {
+    if let Some(client) = current_client().await {
+        // Ignored on purpose, see above. If it fails, the device stays in the
+        // server's device list until removed from another session.
+        let _ = client.logout().await;
+    }
+    reset_client().await
 }
