@@ -6,9 +6,33 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `run_sync_loop`
+// These functions are ignored because they are not marked as `pub`: `run_sync_loop`, `set_state`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
 
 /// Starts the background sync loop, no-op if it's already running.
 /// Needs an authenticated client (call after login / restore_session).
 Future<void> startSync({required String homeserverUrl}) =>
     RustLib.instance.api.crateApiSyncStartSync(homeserverUrl: homeserverUrl);
+
+/// Streams the sync state: the current one right away, then every change.
+/// Stops at the first change after Dart cancels the stream.
+Stream<SyncState> watchSyncState() =>
+    RustLib.instance.api.crateApiSyncWatchSyncState();
+
+enum SyncState {
+  /// No sync loop started yet.
+  idle,
+
+  /// Loop started, waiting for the first response.
+  connecting,
+
+  /// Last sync succeeded.
+  connected,
+
+  /// Last sync failed (offline, server error), retrying.
+  disconnected,
+
+  /// The server rejected the access token (`M_UNKNOWN_TOKEN`: logged out
+  /// from another device, or expired). The loop has stopped, the user must log in again.
+  sessionExpired,
+}

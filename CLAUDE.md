@@ -131,6 +131,7 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 ### Sync loop and streams
 
 - `start_sync` spawns one background `sync_with_result_callback` loop (idempotent per client, via `start_sync_task_once`). Network/server errors are retried after a delay; `M_UNKNOWN_TOKEN` stops the loop.
+- Sync state (`Idle`/`Connecting`/`Connected`/`Disconnected`/`SessionExpired`) lives in a global `tokio::sync::watch` in `sync.rs` and reaches Dart via `watch_sync_state`. `AppShell` listens and shows a banner for `Disconnected` ("Offline, reconnecting…") and `SessionExpired` ("Log in again" → logout flow). `reset_client` sets it back to `Idle`, since the aborted loop can't.
 - Live data reaches Dart through flutter_rust_bridge `StreamSink`s (Dart sees a `Stream<T>`): `watch_rooms` (re-emits the room list on every `subscribe_to_all_room_updates` tick) and `watch_room_messages` (per-room event handler for `OriginalSyncRoomMessageEvent`, already decrypted).
 - Screens hold the `StreamSubscription` and cancel it in `dispose()`. Rust detects the cancel because `sink.add(...)` starts returning `Err`, and then tears down its side (breaks the loop / removes the event handler).
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
@@ -197,8 +198,8 @@ assets:
 
 These are known gaps, not bugs to silently "complete" without flagging — mention them if touching related code:
 
-- Sync status isn't surfaced to Dart — if the loop stops (e.g. token revoked → `M_UNKNOWN_TOKEN`), the UI silently stops updating. Ties into the next item.
-- No real session *validity* check — the router guard only checks that a session exists in local storage, not that it's still valid server-side.
+- Session validity is only checked by the sync loop: a revoked token surfaces as `SessionExpired` after the first sync, and the user is shown the banner. The router guard itself still only checks that a session exists in local storage. Soft logout (`M_UNKNOWN_TOKEN` with `soft_logout: true`, which would allow re-login keeping the device and keys) is treated like a hard logout.
+- Sync 5xx errors are retried inside the SDK for up to 15 minutes before the loop sees them, so a server outage takes that long to show as `Disconnected` (offline/network errors show right away).
 - Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; there's no key backup yet, so old encrypted history is unreadable after logging back in (the confirm dialog says so). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
 - `watch_room_messages` event handlers are removed lazily — only on the next message in that room after Dart cancels the stream.
 - Room screen: only `m.text` messages are shown (images/files/notices/emotes/edits/reactions and undecryptable events are skipped), no back-pagination beyond the latest 50, no date separators. Room name in the title comes from go_router `extra` (falls back to "Chat" on direct navigation).

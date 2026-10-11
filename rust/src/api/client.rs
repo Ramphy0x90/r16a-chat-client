@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
+use crate::api::sync::{set_state, SyncState};
 
 /// `None` until first use, and again after `reset_client`. A tokio Mutex so the
 /// lock can be held across `build().await` (no two callers race to build).
@@ -39,6 +40,7 @@ pub async fn reset_client() -> Result<(), String> {
             task.abort();
         }
     }
+    set_state(SyncState::Idle);
 
     let store = STORE_CONFIG
         .get()
