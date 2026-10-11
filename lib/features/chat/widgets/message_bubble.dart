@@ -46,7 +46,7 @@ class MessageBubble extends StatelessWidget {
                         color: colors.secondary,
                       ),
                     ),
-                  Text(message.body, style: TextStyle(color: colors.onSurface)),
+                  _buildBody(colors, sender),
                   Text(
                     time,
                     style: textTheme.labelSmall?.copyWith(
@@ -60,6 +60,44 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildBody(ColorScheme colors, String sender) {
+    // Own bubbles sit on the accent color, where onSurfaceVariant is too faint.
+    final mutedColor = message.isOwn
+        ? colors.onSurface
+        : colors.onSurfaceVariant;
+    final placeholderStyle = TextStyle(
+      color: mutedColor,
+      fontStyle: FontStyle.italic,
+    );
+
+    return switch (message.kind) {
+      MessageKind.text => Text(
+        message.body,
+        style: TextStyle(color: colors.onSurface),
+      ),
+      MessageKind.notice => Text(
+        message.body,
+        style: TextStyle(color: mutedColor),
+      ),
+      // Matrix convention: the action reads as a sentence with the sender.
+      MessageKind.emote => Text(
+        '${_displaySender(message.sender)} ${message.body}',
+        style: TextStyle(color: colors.onSurface, fontStyle: FontStyle.italic),
+      ),
+      MessageKind.unableToDecrypt => Text(
+        'Unable to decrypt this message',
+        style: placeholderStyle,
+      ),
+      MessageKind.redacted => Text('Message deleted', style: placeholderStyle),
+      MessageKind.unsupported => Text(
+        message.body.isEmpty
+            ? 'Unsupported message'
+            : '${message.body} (not supported yet)',
+        style: placeholderStyle,
+      ),
+    };
   }
 
   /// "@alice:server" -> "alice"

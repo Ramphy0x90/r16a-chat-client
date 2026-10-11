@@ -6,8 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `summaries`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `kind_and_body`, `summaries`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
@@ -26,7 +26,7 @@ Stream<List<MessageSummary>> watchRoomTimeline({
 /// `watch_room_timeline`). Returns whether the start of the room was reached.
 ///
 /// Repeats while no new message shows up: a page can be made only of events
-/// that aren't displayed (state events, non-text messages), and the UI only asks
+/// that aren't displayed (state events), and the UI only asks
 /// again when the list grows. Capped so a room full of hidden events can't loop
 /// for long; the UI can still ask for more.
 Future<bool> paginateBackwards({required String roomId, required int count}) =>
@@ -46,16 +46,38 @@ Future<String> sendTextMessage({
   body: body,
 );
 
+enum MessageKind {
+  text,
+
+  /// Usually from bots, shown muted.
+  notice,
+
+  /// `/me` action, `body` is the action without the sender ("waves").
+  emote,
+
+  /// Missing keys. The SDK retries when keys arrive, the item then turns into a message.
+  unableToDecrypt,
+  redacted,
+
+  /// Anything not rendered yet (images, files, stickers, polls...). `body` is
+  /// the event's fallback text when it has one (often a file name), else empty.
+  unsupported,
+}
+
 class MessageSummary {
   /// Stable across a local echo becoming the sent event, use it as the list key.
   final String id;
+  final MessageKind kind;
   final String sender;
+
+  /// Empty for kinds without text (`UnableToDecrypt`, `Redacted`), the UI shows a placeholder.
   final String body;
   final PlatformInt64 timestampMs;
   final bool isOwn;
 
   const MessageSummary({
     required this.id,
+    required this.kind,
     required this.sender,
     required this.body,
     required this.timestampMs,
@@ -65,6 +87,7 @@ class MessageSummary {
   @override
   int get hashCode =>
       id.hashCode ^
+      kind.hashCode ^
       sender.hashCode ^
       body.hashCode ^
       timestampMs.hashCode ^
@@ -76,6 +99,7 @@ class MessageSummary {
       other is MessageSummary &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          kind == other.kind &&
           sender == other.sender &&
           body == other.body &&
           timestampMs == other.timestampMs &&

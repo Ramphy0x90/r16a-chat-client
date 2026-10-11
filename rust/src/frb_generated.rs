@@ -782,16 +782,34 @@ impl SseDecode for Vec<crate::api::rooms::RoomSummary> {
     }
 }
 
+impl SseDecode for crate::api::messages::MessageKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::messages::MessageKind::Text,
+            1 => crate::api::messages::MessageKind::Notice,
+            2 => crate::api::messages::MessageKind::Emote,
+            3 => crate::api::messages::MessageKind::UnableToDecrypt,
+            4 => crate::api::messages::MessageKind::Redacted,
+            5 => crate::api::messages::MessageKind::Unsupported,
+            _ => unreachable!("Invalid variant for MessageKind: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::messages::MessageSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_kind = <crate::api::messages::MessageKind>::sse_decode(deserializer);
         let mut var_sender = <String>::sse_decode(deserializer);
         let mut var_body = <String>::sse_decode(deserializer);
         let mut var_timestampMs = <i64>::sse_decode(deserializer);
         let mut var_isOwn = <bool>::sse_decode(deserializer);
         return crate::api::messages::MessageSummary {
             id: var_id,
+            kind: var_kind,
             sender: var_sender,
             body: var_body,
             timestamp_ms: var_timestampMs,
@@ -928,10 +946,36 @@ fn pde_ffi_dispatcher_sync_impl(
 // Section: rust2dart
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::messages::MessageKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Text => 0.into_dart(),
+            Self::Notice => 1.into_dart(),
+            Self::Emote => 2.into_dart(),
+            Self::UnableToDecrypt => 3.into_dart(),
+            Self::Redacted => 4.into_dart(),
+            Self::Unsupported => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::messages::MessageKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::messages::MessageKind>
+    for crate::api::messages::MessageKind
+{
+    fn into_into_dart(self) -> crate::api::messages::MessageKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::messages::MessageSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
+            self.kind.into_into_dart().into_dart(),
             self.sender.into_into_dart().into_dart(),
             self.body.into_into_dart().into_dart(),
             self.timestamp_ms.into_into_dart().into_dart(),
@@ -1114,10 +1158,31 @@ impl SseEncode for Vec<crate::api::rooms::RoomSummary> {
     }
 }
 
+impl SseEncode for crate::api::messages::MessageKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::messages::MessageKind::Text => 0,
+                crate::api::messages::MessageKind::Notice => 1,
+                crate::api::messages::MessageKind::Emote => 2,
+                crate::api::messages::MessageKind::UnableToDecrypt => 3,
+                crate::api::messages::MessageKind::Redacted => 4,
+                crate::api::messages::MessageKind::Unsupported => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::messages::MessageSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
+        <crate::api::messages::MessageKind>::sse_encode(self.kind, serializer);
         <String>::sse_encode(self.sender, serializer);
         <String>::sse_encode(self.body, serializer);
         <i64>::sse_encode(self.timestamp_ms, serializer);

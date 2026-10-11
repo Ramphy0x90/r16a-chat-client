@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use matrix_sdk::Client;
 use matrix_sdk::ruma::RoomId;
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
-use matrix_sdk_ui::timeline::{RoomExt, Timeline, TimelineItem};
+use matrix_sdk_ui::timeline::{MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
 use crate::api::client::{get_or_create_client, track_task};
 use crate::frb_generated::StreamSink;
 
@@ -16,11 +16,28 @@ const MAX_PAGINATION_ROUNDS: usize = 5;
 /// Weak: the watch task owns the timeline, the entry dies with it.
 static TIMELINES: LazyLock<Mutex<HashMap<String, Weak<Timeline>>>> = LazyLock::new(Default::default);
 
+#[derive(Clone, Copy)]
+pub enum MessageKind {
+    Text,
+    /// Usually from bots, shown muted.
+    Notice,
+    /// `/me` action, `body` is the action without the sender ("waves").
+    Emote,
+    /// Missing keys. The SDK retries when keys arrive, the item then turns into a message.
+    UnableToDecrypt,
+    Redacted,
+    /// Anything not rendered yet (images, files, stickers, polls...). `body` is
+    /// the event's fallback text when it has one (often a file name), else empty.
+    Unsupported,
+}
+
 #[derive(Clone)]
 pub struct MessageSummary {
     /// Stable across a local echo becoming the sent event, use it as the list key.
     pub id: String,
+    pub kind: MessageKind,
     pub sender: String,
+    /// Empty for kinds without text (`UnableToDecrypt`, `Redacted`), the UI shows a placeholder.
     pub body: String,
     pub timestamp_ms: i64,
     pub is_own: bool,
@@ -71,7 +88,7 @@ pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: 
 /// `watch_room_timeline`). Returns whether the start of the room was reached.
 ///
 /// Repeats while no new message shows up: a page can be made only of events
-/// that aren't displayed (state events, non-text messages), and the UI only asks
+/// that aren't displayed (state events), and the UI only asks
 /// again when the list grows. Capped so a room full of hidden events can't loop
 /// for long; the UI can still ask for more.
 pub async fn paginate_backwards(room_id: String, count: u16) -> Result<bool, String> {
@@ -121,24 +138,42 @@ fn get_room(client: &Client, room_id: &str) -> Result<matrix_sdk::Room, String> 
         .ok_or_else(|| format!("Room {room_id} not found"))
 }
 
-/// Only text messages for now; everything else (virtual items like date dividers,
-/// state events, other message types, undecryptable events) is skipped.
+/// Message-like events only. Virtual items (date dividers, read marker) and
+/// state events (membership, room name changes...) are skipped.
 fn summaries(items: &Vector<Arc<TimelineItem>>) -> Vec<MessageSummary> {
     items
         .iter()
         .filter_map(|item| {
             let event = item.as_event()?;
-            let message = event.content().as_message()?;
-            let MessageType::Text(text) = message.msgtype() else {
+            let TimelineItemContent::MsgLike(content) = event.content() else {
                 return None;
             };
+            let (kind, body) = kind_and_body(&content.kind);
             Some(MessageSummary {
                 id: item.unique_id().0.clone(),
+                kind,
                 sender: event.sender().to_string(),
-                body: text.body.clone(),
+                body,
                 timestamp_ms: i64::from(event.timestamp().0),
                 is_own: event.is_own(),
             })
         })
         .collect()
+}
+
+fn kind_and_body(kind: &MsgLikeKind) -> (MessageKind, String) {
+    match kind {
+        MsgLikeKind::Message(message) => match message.msgtype() {
+            MessageType::Text(text) => (MessageKind::Text, text.body.clone()),
+            MessageType::Notice(notice) => (MessageKind::Notice, notice.body.clone()),
+            MessageType::Emote(emote) => (MessageKind::Emote, emote.body.clone()),
+            other => (MessageKind::Unsupported, other.body().to_string()),
+        },
+        MsgLikeKind::UnableToDecrypt(_) => (MessageKind::UnableToDecrypt, String::new()),
+        MsgLikeKind::Redacted => (MessageKind::Redacted, String::new()),
+        MsgLikeKind::Sticker(sticker) => (MessageKind::Unsupported, sticker.content().body.clone()),
+        MsgLikeKind::Poll(_) | MsgLikeKind::Other(_) | MsgLikeKind::LiveLocation(_) => {
+            (MessageKind::Unsupported, String::new())
+        }
+    }
 }

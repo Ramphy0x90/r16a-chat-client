@@ -764,17 +764,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageKind dco_decode_message_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MessageKind.values[raw as int];
+  }
+
+  @protected
   MessageSummary dco_decode_message_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return MessageSummary(
       id: dco_decode_String(arr[0]),
-      sender: dco_decode_String(arr[1]),
-      body: dco_decode_String(arr[2]),
-      timestampMs: dco_decode_i_64(arr[3]),
-      isOwn: dco_decode_bool(arr[4]),
+      kind: dco_decode_message_kind(arr[1]),
+      sender: dco_decode_String(arr[2]),
+      body: dco_decode_String(arr[3]),
+      timestampMs: dco_decode_i_64(arr[4]),
+      isOwn: dco_decode_bool(arr[5]),
     );
   }
 
@@ -935,15 +942,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageKind sse_decode_message_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return MessageKind.values[inner];
+  }
+
+  @protected
   MessageSummary sse_decode_message_summary(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
+    var var_kind = sse_decode_message_kind(deserializer);
     var var_sender = sse_decode_String(deserializer);
     var var_body = sse_decode_String(deserializer);
     var var_timestampMs = sse_decode_i_64(deserializer);
     var var_isOwn = sse_decode_bool(deserializer);
     return MessageSummary(
       id: var_id,
+      kind: var_kind,
       sender: var_sender,
       body: var_body,
       timestampMs: var_timestampMs,
@@ -1149,12 +1165,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_message_kind(MessageKind self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_message_summary(
     MessageSummary self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
+    sse_encode_message_kind(self.kind, serializer);
     sse_encode_String(self.sender, serializer);
     sse_encode_String(self.body, serializer);
     sse_encode_i_64(self.timestampMs, serializer);
