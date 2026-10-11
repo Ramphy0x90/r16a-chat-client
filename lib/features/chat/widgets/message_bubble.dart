@@ -1,12 +1,29 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:r16a_chat_client/features/chat/widgets/file_attachment.dart';
+import 'package:r16a_chat_client/features/chat/widgets/image_attachment.dart';
+import 'package:r16a_chat_client/src/rust/api/media.dart';
 import 'package:r16a_chat_client/src/rust/api/messages.dart';
 
 class MessageBubble extends StatelessWidget {
   final MessageSummary message;
+  final Future<Uint8List> Function(MediaInfo media) loadPreview;
+  final void Function(MediaInfo media) onOpenImage;
+  final void Function(MediaInfo media) onSaveFile;
 
-  const MessageBubble({super.key, required this.message});
+  /// Whether this message's file is being saved.
+  final bool isSaving;
+
+  const MessageBubble({
+    super.key,
+    required this.message,
+    required this.loadPreview,
+    required this.onOpenImage,
+    required this.onSaveFile,
+    required this.isSaving,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +142,40 @@ class MessageBubble extends StatelessWidget {
             : '${message.body} (not supported yet)',
         style: placeholderStyle,
       ),
+      MessageKind.image ||
+      MessageKind.file => _buildAttachment(colors, placeholderStyle),
     };
+  }
+
+  Widget _buildAttachment(ColorScheme colors, TextStyle placeholderStyle) {
+    final media = message.media;
+    // Rust always sets media for these kinds; guard anyway.
+    if (media == null) {
+      return Text('Unsupported message', style: placeholderStyle);
+    }
+
+    final attachment = message.kind == MessageKind.image
+        ? ImageAttachment(
+            media: media,
+            loadPreview: loadPreview,
+            onOpen: () => onOpenImage(media),
+          )
+        : FileAttachment(
+            media: media,
+            isSaving: isSaving,
+            onSave: () => onSaveFile(media),
+            isOwn: message.isOwn,
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        attachment,
+        if (message.body.isNotEmpty)
+          Text(message.body, style: TextStyle(color: colors.onSurface)),
+      ],
+    );
   }
 
   /// "@alice:server" -> "alice"

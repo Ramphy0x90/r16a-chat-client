@@ -7,6 +7,7 @@ use matrix_sdk::ruma::{RoomId, UserId};
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
 use matrix_sdk_ui::timeline::{MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
 use crate::api::client::{get_or_create_client, track_task};
+use crate::api::media::{media_info, MediaInfo};
 use crate::frb_generated::StreamSink;
 
 /// Max pagination requests per `paginate_backwards` call, see there.
@@ -26,7 +27,12 @@ pub enum MessageKind {
     /// Missing keys. The SDK retries when keys arrive, the item then turns into a message.
     UnableToDecrypt,
     Redacted,
-    /// Anything not rendered yet (images, files, stickers, polls...). `body` is
+    /// `media` is set, `body` is the caption (empty without one).
+    Image,
+    /// Also videos and audio (not playable in the app yet). `media` is set,
+    /// `body` is the caption (empty without one).
+    File,
+    /// Anything not rendered yet (stickers, polls, locations...). `body` is
     /// the event's fallback text when it has one (often a file name), else empty.
     Unsupported,
 }
@@ -45,6 +51,8 @@ pub struct MessageSummary {
     pub is_edited: bool,
     /// In the order they were first added.
     pub reactions: Vec<ReactionSummary>,
+    /// Set for `Image` and `File`.
+    pub media: Option<MediaInfo>,
 }
 
 #[derive(Clone)]
@@ -163,6 +171,7 @@ fn summaries(items: &Vector<Arc<TimelineItem>>, own_user_id: &UserId) -> Vec<Mes
                 return None;
             };
             let (kind, body) = kind_and_body(&content.kind);
+            let media = content.as_message().and_then(|message| media_info(message.msgtype()));
             Some(MessageSummary {
                 id: item.unique_id().0.clone(),
                 kind,
@@ -172,6 +181,7 @@ fn summaries(items: &Vector<Arc<TimelineItem>>, own_user_id: &UserId) -> Vec<Mes
                 is_own: event.is_own(),
                 is_edited: content.as_message().is_some_and(|message| message.is_edited()),
                 reactions: reaction_summaries(content, own_user_id),
+                media,
             })
         })
         .collect()
@@ -197,6 +207,10 @@ fn kind_and_body(kind: &MsgLikeKind) -> (MessageKind, String) {
             MessageType::Text(text) => (MessageKind::Text, text.body.clone()),
             MessageType::Notice(notice) => (MessageKind::Notice, notice.body.clone()),
             MessageType::Emote(emote) => (MessageKind::Emote, emote.body.clone()),
+            MessageType::Image(image) => (MessageKind::Image, caption(image.caption())),
+            MessageType::File(file) => (MessageKind::File, caption(file.caption())),
+            MessageType::Video(video) => (MessageKind::File, caption(video.caption())),
+            MessageType::Audio(audio) => (MessageKind::File, caption(audio.caption())),
             other => (MessageKind::Unsupported, other.body().to_string()),
         },
         MsgLikeKind::UnableToDecrypt(_) => (MessageKind::UnableToDecrypt, String::new()),
@@ -206,4 +220,8 @@ fn kind_and_body(kind: &MsgLikeKind) -> (MessageKind, String) {
             (MessageKind::Unsupported, String::new())
         }
     }
+}
+
+fn caption(caption: Option<&str>) -> String {
+    caption.unwrap_or_default().to_string()
 }

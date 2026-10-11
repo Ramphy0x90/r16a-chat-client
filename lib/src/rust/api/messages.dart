@@ -4,9 +4,10 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'media.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
@@ -59,7 +60,14 @@ enum MessageKind {
   unableToDecrypt,
   redacted,
 
-  /// Anything not rendered yet (images, files, stickers, polls...). `body` is
+  /// `media` is set, `body` is the caption (empty without one).
+  image,
+
+  /// Also videos and audio (not playable in the app yet). `media` is set,
+  /// `body` is the caption (empty without one).
+  file,
+
+  /// Anything not rendered yet (stickers, polls, locations...). `body` is
   /// the event's fallback text when it has one (often a file name), else empty.
   unsupported,
 }
@@ -81,6 +89,9 @@ class MessageSummary {
   /// In the order they were first added.
   final List<ReactionSummary> reactions;
 
+  /// Set for `Image` and `File`.
+  final MediaInfo? media;
+
   const MessageSummary({
     required this.id,
     required this.kind,
@@ -90,6 +101,7 @@ class MessageSummary {
     required this.isOwn,
     required this.isEdited,
     required this.reactions,
+    this.media,
   });
 
   @override
@@ -101,7 +113,8 @@ class MessageSummary {
       timestampMs.hashCode ^
       isOwn.hashCode ^
       isEdited.hashCode ^
-      reactions.hashCode;
+      reactions.hashCode ^
+      media.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -115,7 +128,8 @@ class MessageSummary {
           timestampMs == other.timestampMs &&
           isOwn == other.isOwn &&
           isEdited == other.isEdited &&
-          reactions == other.reactions;
+          reactions == other.reactions &&
+          media == other.media;
 }
 
 class ReactionSummary {

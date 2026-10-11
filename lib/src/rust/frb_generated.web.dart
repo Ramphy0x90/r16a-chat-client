@@ -8,6 +8,7 @@
 
 import 'api/auth.dart';
 import 'api/client.dart';
+import 'api/media.dart';
 import 'api/messages.dart';
 import 'api/profile.dart';
 import 'api/rooms.dart';
@@ -47,6 +48,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  MediaInfo dco_decode_box_autoadd_media_info(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -68,6 +78,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RoomSummary> dco_decode_list_room_summary(dynamic raw);
 
   @protected
+  MediaInfo dco_decode_media_info(dynamic raw);
+
+  @protected
   MessageKind dco_decode_message_kind(dynamic raw);
 
   @protected
@@ -75,6 +88,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  MediaInfo? dco_decode_opt_box_autoadd_media_info(dynamic raw);
 
   @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
@@ -127,6 +149,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  MediaInfo sse_decode_box_autoadd_media_info(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -152,6 +183,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RoomSummary> sse_decode_list_room_summary(SseDeserializer deserializer);
 
   @protected
+  MediaInfo sse_decode_media_info(SseDeserializer deserializer);
+
+  @protected
   MessageKind sse_decode_message_kind(SseDeserializer deserializer);
 
   @protected
@@ -159,6 +193,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  MediaInfo? sse_decode_opt_box_autoadd_media_info(
+    SseDeserializer deserializer,
+  );
 
   @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -218,6 +263,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_media_info(
+    MediaInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -251,6 +311,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_media_info(MediaInfo self, SseSerializer serializer);
+
+  @protected
   void sse_encode_message_kind(MessageKind self, SseSerializer serializer);
 
   @protected
@@ -261,6 +324,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_media_info(
+    MediaInfo? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_list_prim_u_8_strict(

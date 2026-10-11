@@ -39,10 +39,11 @@ lib/
 rust/
   src/
     lib.rs
-    api.rs       # pub mod auth; pub mod client; pub mod messages; pub mod profile; pub mod rooms; pub mod sync;
+    api.rs       # pub mod auth; pub mod client; pub mod media; pub mod messages; pub mod profile; pub mod rooms; pub mod sync;
     api/
       client.rs    # shared Client singleton + persistent store config
       auth.rs
+      media.rs     # load_media_preview, load_media, save_media (opaque media handles)
       messages.rs  # watch_room_timeline, paginate_backwards, send_text_message (matrix-sdk-ui Timeline)
       profile.rs   # get_profile, set_display_name, set_avatar, remove_avatar
       rooms.rs     # watch_rooms, get_room_name
@@ -79,6 +80,7 @@ pub mod api;
 // api.rs
 pub mod auth;
 pub mod client;
+pub mod media;
 pub mod messages;
 pub mod profile;
 pub mod rooms;
@@ -137,6 +139,13 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
 - The room timeline is reachable from `paginate_backwards(room_id, …)` through a `room_id → Weak<Timeline>` map; the watch task owns the `Arc`. Older messages arrive through the stream, not the return value (which is only "reached the start"). `paginate_backwards` repeats (max 5 rounds) until a visible message appears, because pages can consist only of hidden events.
 - `RoomScreen` calls `paginateBackwards` once after the first emission (which is only the local cache), then `MessageList` asks for more when scrolled near the top, with a "Load older messages" button as fallback when the content doesn't fill the screen. Date separators are computed in `MessageList` (the Timeline's own `DateDivider` items are skipped: a data-carrying enum on the bridge would need `freezed`). List keys are the timeline's `unique_id`, not event IDs. Sent messages (still `room.send`, not the send queue) arrive back through the timeline.
+
+### Media handles carry decryption keys
+
+Image/file messages come with a `MediaInfo` whose `handle` is a JSON blob (`MediaSource` + thumbnail source + declared size) that Dart passes back to `load_media_preview` / `load_media` / `save_media`. For encrypted media it contains the AES key, so **never log, persist or send it anywhere** on the Dart side. Stateless on purpose (no Rust-side id→source map to clean up).
+
+- Previews: the sender's thumbnail if any, else a server thumbnail (unencrypted only), else the full file for encrypted images (capped at 20 MB declared size). Previews and viewed images are cached in the (encrypted) store; saved files are not.
+- Declared sizes come from the sender and aren't verified; an unknown size passes the caps.
 
 ### Avatar uploads are re-encoded (privacy, don't remove)
 
@@ -202,9 +211,10 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 - Session validity is only checked by the sync loop: a revoked token surfaces as `SessionExpired` after the first sync, and the user is shown the banner. The router guard itself still only checks that a session exists in local storage. Soft logout (`M_UNKNOWN_TOKEN` with `soft_logout: true`, which would allow re-login keeping the device and keys) is treated like a hard logout.
 - Sync 5xx errors are retried inside the SDK for up to 15 minutes before the loop sees them, so a server outage takes that long to show as `Disconnected` (offline/network errors show right away).
 - Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; there's no key backup yet, so old encrypted history is unreadable after logging back in (the confirm dialog says so). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
+- Media: receive only, no sending images/files yet. Saving uses `file_selector`'s `getSaveLocation`, which doesn't exist on Android/iOS (desktop only for now). `save_media` holds the whole file in memory (no streaming to disk, no size cap). The file/download icons are Material `Icons`, not the app's SVG set.
 - A cancelled `watch_room_timeline` stream is only noticed on the room's next timeline change, so the `Timeline` lingers until then (or until logout aborts it).
 - Every timeline change re-maps and re-sends the whole message list across the bridge; fine for now, worth revisiting for rooms with long loaded histories.
-- Room screen: text, notices, emotes, "unable to decrypt" and "message deleted" are rendered (`MessageKind`); images/files/stickers/polls show an "(not supported yet)" placeholder with the fallback text. State events (joins, renames...) are skipped. The UTD placeholder doesn't explain *why* (the SDK's `UtdCause`, e.g. sent before joining, isn't passed through). Edits (applied by the Timeline, "· edited" next to the time) and reactions (chips under the bubble, highlighted when you reacted) are display only: no editing, reacting or un-reacting yet, and no "who reacted" list. No local echo: sending uses `room.send`, not the send queue / `timeline.send`. Room name comes from go_router `extra`, fetched with `get_room_name` on direct navigation.
+- Room screen: text, notices, emotes, "unable to decrypt" and "message deleted" are rendered (`MessageKind`); images show inline (tap → full-screen viewer), files/videos/audio show as a row with a Save button (videos/audio aren't playable); stickers/polls/locations show a "(not supported yet)" placeholder with the fallback text. State events (joins, renames...) are skipped. The UTD placeholder doesn't explain *why* (the SDK's `UtdCause`, e.g. sent before joining, isn't passed through). Edits (applied by the Timeline, "· edited" next to the time) and reactions (chips under the bubble, highlighted when you reacted) are display only: no editing, reacting or un-reacting yet, and no "who reacted" list. No local echo: sending uses `room.send`, not the send queue / `timeline.send`. Room name comes from go_router `extra`, fetched with `get_room_name` on direct navigation.
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
 - Settings sub-screens Security, Customize and Storage are routed placeholders with no real content yet. Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
 - Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; maroon `primary` makes the cursor/spinners near-invisible in dark mode app-wide (fixed locally in the room screen only); Enter always sends in the composer (no newline on mobile).

@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:r16a_chat_client/features/chat/widgets/message_bubble.dart';
+import 'package:r16a_chat_client/src/rust/api/media.dart';
 import 'package:r16a_chat_client/src/rust/api/messages.dart';
 
 class MessageList extends StatelessWidget {
@@ -15,12 +18,23 @@ class MessageList extends StatelessWidget {
   /// scrolling, the caller ignores calls while a load is running.
   final VoidCallback onLoadOlder;
 
+  final Future<Uint8List> Function(MediaInfo media) loadPreview;
+  final void Function(MediaInfo media) onOpenImage;
+  final void Function(MediaInfo media) onSaveFile;
+
+  /// Handles of the files currently being saved.
+  final Set<String> savingHandles;
+
   const MessageList({
     super.key,
     required this.messages,
     required this.isLoadingOlder,
     required this.hasReachedStart,
     required this.onLoadOlder,
+    required this.loadPreview,
+    required this.onOpenImage,
+    required this.onSaveFile,
+    required this.savingHandles,
   });
 
   @override
@@ -58,6 +72,10 @@ class MessageList extends StatelessWidget {
             _MessageRow(:final message) => MessageBubble(
               key: ValueKey(message.id),
               message: message,
+              loadPreview: loadPreview,
+              onOpenImage: onOpenImage,
+              onSaveFile: onSaveFile,
+              isSaving: savingHandles.contains(message.media?.handle),
             ),
             _DateRow(:final day) => _DateSeparator(
               key: ValueKey(day),

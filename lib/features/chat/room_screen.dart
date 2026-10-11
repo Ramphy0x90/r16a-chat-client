@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/core/detail_scaffold.dart';
+import 'package:r16a_chat_client/features/chat/widgets/image_viewer.dart';
 import 'package:r16a_chat_client/features/chat/widgets/message_composer.dart';
 import 'package:r16a_chat_client/features/chat/widgets/message_list.dart';
+import 'package:r16a_chat_client/src/rust/api/media.dart';
 import 'package:r16a_chat_client/src/rust/api/messages.dart';
 import 'package:r16a_chat_client/src/rust/api/rooms.dart';
 
@@ -31,6 +35,10 @@ class _RoomScreenState extends State<RoomScreen> {
   bool _isSending = false;
   String? _errorMessage;
   StreamSubscription<List<MessageSummary>>? _timelineSubscription;
+
+  /// Keyed by media handle so rebuilds reuse the same download.
+  final Map<String, Future<Uint8List>> _previews = {};
+  final Set<String> _savingHandles = {};
 
   @override
   void initState() {
@@ -75,6 +83,10 @@ class _RoomScreenState extends State<RoomScreen> {
       isLoadingOlder: _isLoadingOlder,
       hasReachedStart: _hasReachedStart,
       onLoadOlder: _loadOlder,
+      loadPreview: _loadPreview,
+      onOpenImage: _openImage,
+      onSaveFile: _saveFile,
+      savingHandles: _savingHandles,
     );
   }
 
@@ -130,6 +142,59 @@ class _RoomScreenState extends State<RoomScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoadingOlder = false);
+    }
+  }
+
+  Future<Uint8List> _loadPreview(MediaInfo media) {
+    return _previews.putIfAbsent(media.handle, () {
+      final future = loadMediaPreview(
+        homeserverUrl: AppConstants.defaultHomeserverUrl,
+        handle: media.handle,
+      );
+      // Forget failures so the next rebuild retries instead of caching the error.
+      future.then(
+        (_) {},
+        onError: (Object _) => _previews.remove(media.handle),
+      );
+      return future;
+    });
+  }
+
+  void _openImage(MediaInfo media) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => ImageViewer(
+        title: media.filename,
+        image: loadMedia(
+          homeserverUrl: AppConstants.defaultHomeserverUrl,
+          handle: media.handle,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveFile(MediaInfo media) async {
+    if (_savingHandles.contains(media.handle)) return;
+
+    // Desktop only: file_selector has no save dialog on Android/iOS.
+    final location = await getSaveLocation(suggestedName: media.filename);
+    if (location == null || !mounted) return;
+
+    setState(() => _savingHandles.add(media.handle));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await saveMedia(
+        homeserverUrl: AppConstants.defaultHomeserverUrl,
+        handle: media.handle,
+        path: location.path,
+      );
+      messenger.showSnackBar(
+        SnackBar(content: Text('Saved ${media.filename}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    } finally {
+      if (mounted) setState(() => _savingHandles.remove(media.handle));
     }
   }
 
