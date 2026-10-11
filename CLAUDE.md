@@ -43,9 +43,9 @@ rust/
     api/
       client.rs    # shared Client singleton + persistent store config
       auth.rs
-      messages.rs  # get_messages, watch_room_messages, send_text_message
+      messages.rs  # watch_room_timeline, paginate_backwards, send_text_message (matrix-sdk-ui Timeline)
       profile.rs   # get_profile, set_display_name, set_avatar, remove_avatar
-      rooms.rs     # watch_rooms
+      rooms.rs     # watch_rooms, get_room_name
       sync.rs      # start_sync (background sync loop)
 ```
 
@@ -132,10 +132,11 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 
 - `start_sync` spawns one background `sync_with_result_callback` loop (idempotent per client, via `start_sync_task_once`). Network/server errors are retried after a delay; `M_UNKNOWN_TOKEN` stops the loop.
 - Sync state (`Idle`/`Connecting`/`Connected`/`Disconnected`/`SessionExpired`) lives in a global `tokio::sync::watch` in `sync.rs` and reaches Dart via `watch_sync_state`. `AppShell` listens and shows a banner for `Disconnected` ("Offline, reconnecting…") and `SessionExpired` ("Log in again" → logout flow). `reset_client` sets it back to `Idle`, since the aborted loop can't.
-- Live data reaches Dart through flutter_rust_bridge `StreamSink`s (Dart sees a `Stream<T>`): `watch_rooms` (re-emits the room list on every `subscribe_to_all_room_updates` tick) and `watch_room_messages` (per-room event handler for `OriginalSyncRoomMessageEvent`, already decrypted).
-- Screens hold the `StreamSubscription` and cancel it in `dispose()`. Rust detects the cancel because `sink.add(...)` starts returning `Err`, and then tears down its side (breaks the loop / removes the event handler).
+- Live data reaches Dart through flutter_rust_bridge `StreamSink`s (Dart sees a `Stream<T>`): `watch_rooms` (re-emits the room list on every `subscribe_to_all_room_updates` tick) and `watch_room_timeline` (a `matrix_sdk_ui::timeline::Timeline` per room; diffs are applied in Rust and the **full** mapped message list is re-sent on every change, so Dart never merges).
+- Screens hold the `StreamSubscription` and cancel it in `dispose()`. Rust detects the cancel because `sink.add(...)` starts returning `Err`, and then tears down its side (breaks the loop, dropping the timeline).
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
-- `RoomScreen` subscribes to new messages *before* loading history and merges/dedupes by `eventId`, so nothing is lost in between. Sent messages are not re-fetched; they arrive back through sync.
+- The room timeline is reachable from `paginate_backwards(room_id, …)` through a `room_id → Weak<Timeline>` map; the watch task owns the `Arc`. Older messages arrive through the stream, not the return value (which is only "reached the start"). `paginate_backwards` repeats (max 5 rounds) until a visible message appears, because pages can consist only of hidden events.
+- `RoomScreen` calls `paginateBackwards` once after the first emission (which is only the local cache), then `MessageList` asks for more when scrolled near the top, with a "Load older messages" button as fallback when the content doesn't fill the screen. Date separators are computed in `MessageList` (the Timeline's own `DateDivider` items are skipped: a data-carrying enum on the bridge would need `freezed`). List keys are the timeline's `unique_id`, not event IDs. Sent messages (still `room.send`, not the send queue) arrive back through the timeline.
 
 ### Avatar uploads are re-encoded (privacy, don't remove)
 
@@ -201,8 +202,9 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 - Session validity is only checked by the sync loop: a revoked token surfaces as `SessionExpired` after the first sync, and the user is shown the banner. The router guard itself still only checks that a session exists in local storage. Soft logout (`M_UNKNOWN_TOKEN` with `soft_logout: true`, which would allow re-login keeping the device and keys) is treated like a hard logout.
 - Sync 5xx errors are retried inside the SDK for up to 15 minutes before the loop sees them, so a server outage takes that long to show as `Disconnected` (offline/network errors show right away).
 - Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; there's no key backup yet, so old encrypted history is unreadable after logging back in (the confirm dialog says so). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
-- `watch_room_messages` event handlers are removed lazily — only on the next message in that room after Dart cancels the stream.
-- Room screen: only `m.text` messages are shown (images/files/notices/emotes/edits/reactions and undecryptable events are skipped), no back-pagination beyond the latest 50, no date separators. Room name in the title comes from go_router `extra` (falls back to "Chat" on direct navigation).
+- A cancelled `watch_room_timeline` stream is only noticed on the room's next timeline change, so the `Timeline` lingers until then (or until logout aborts it).
+- Every timeline change re-maps and re-sends the whole message list across the bridge; fine for now, worth revisiting for rooms with long loaded histories.
+- Room screen: only `m.text` messages are shown (images/files/notices/emotes and undecryptable events are skipped; edits are applied by the Timeline but there's no "(edited)" label, reactions aren't shown). No local echo: sending uses `room.send`, not the send queue / `timeline.send`. Room name comes from go_router `extra`, fetched with `get_room_name` on direct navigation.
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
 - Settings sub-screens Security, Customize and Storage are routed placeholders with no real content yet. Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
 - Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; maroon `primary` makes the cursor/spinners near-invisible in dark mode app-wide (fixed locally in the room screen only); Enter always sends in the composer (no newline on mobile).

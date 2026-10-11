@@ -38,7 +38,7 @@ final router = GoRouter(
               path: ":roomId",
               builder: (context, state) => RoomScreen(
                 roomId: state.pathParameters['roomId']!,
-                roomName: state.extra as String? ?? 'Chat',
+                roomName: state.extra as String?,
               ),
             ),
           ],

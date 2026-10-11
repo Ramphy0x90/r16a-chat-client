@@ -6,30 +6,34 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_room`, `to_summary`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `get_room`, `summaries`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
-/// Latest `limit` text messages of a room, oldest first.
-Future<List<MessageSummary>> getMessages({
+/// Streams the room's messages (oldest first) as a full list: once right away with
+/// what's cached locally, then again on every change (new messages, older ones from
+/// `paginate_backwards`, decryption catching up). Stops at the first change after
+/// Dart cancels the stream.
+/// Errors go into the stream (a returned Err would never reach the Dart listener).
+Stream<List<MessageSummary>> watchRoomTimeline({
   required String homeserverUrl,
   required String roomId,
-  required int limit,
-}) => RustLib.instance.api.crateApiMessagesGetMessages(
+}) => RustLib.instance.api.crateApiMessagesWatchRoomTimeline(
   homeserverUrl: homeserverUrl,
   roomId: roomId,
-  limit: limit,
 );
 
-/// Streams new text messages of a room as they arrive through the sync loop
-/// (already decrypted). Stops when Dart cancels the stream.
-/// Errors go into the stream (a returned Err would never reach the Dart listener).
-Stream<MessageSummary> watchRoomMessages({
-  required String homeserverUrl,
-  required String roomId,
-}) => RustLib.instance.api.crateApiMessagesWatchRoomMessages(
-  homeserverUrl: homeserverUrl,
-  roomId: roomId,
-);
+/// Loads older messages into the watched timeline (they arrive through
+/// `watch_room_timeline`). Returns whether the start of the room was reached.
+///
+/// Repeats while no new message shows up: a page can be made only of events
+/// that aren't displayed (state events, non-text messages), and the UI only asks
+/// again when the list grows. Capped so a room full of hidden events can't loop
+/// for long; the UI can still ask for more.
+Future<bool> paginateBackwards({required String roomId, required int count}) =>
+    RustLib.instance.api.crateApiMessagesPaginateBackwards(
+      roomId: roomId,
+      count: count,
+    );
 
 /// Sends a plain-text message, returns its event ID.
 Future<String> sendTextMessage({
@@ -43,14 +47,15 @@ Future<String> sendTextMessage({
 );
 
 class MessageSummary {
-  final String eventId;
+  /// Stable across a local echo becoming the sent event, use it as the list key.
+  final String id;
   final String sender;
   final String body;
   final PlatformInt64 timestampMs;
   final bool isOwn;
 
   const MessageSummary({
-    required this.eventId,
+    required this.id,
     required this.sender,
     required this.body,
     required this.timestampMs,
@@ -59,7 +64,7 @@ class MessageSummary {
 
   @override
   int get hashCode =>
-      eventId.hashCode ^
+      id.hashCode ^
       sender.hashCode ^
       body.hashCode ^
       timestampMs.hashCode ^
@@ -70,7 +75,7 @@ class MessageSummary {
       identical(this, other) ||
       other is MessageSummary &&
           runtimeType == other.runtimeType &&
-          eventId == other.eventId &&
+          id == other.id &&
           sender == other.sender &&
           body == other.body &&
           timestampMs == other.timestampMs &&

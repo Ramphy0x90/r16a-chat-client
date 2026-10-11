@@ -1,78 +1,98 @@
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex, Weak};
+use eyeball_im::Vector;
+use futures_util::StreamExt;
 use matrix_sdk::Client;
-use matrix_sdk::event_handler::EventHandlerHandle;
-use matrix_sdk::room::MessagesOptions;
-use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent};
-use matrix_sdk::ruma::events::{AnySyncMessageLikeEvent, AnySyncTimelineEvent, SyncMessageLikeEvent};
-use matrix_sdk::ruma::{RoomId, UInt, UserId};
-use crate::api::client::get_or_create_client;
+use matrix_sdk::ruma::RoomId;
+use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
+use matrix_sdk_ui::timeline::{RoomExt, Timeline, TimelineItem};
+use crate::api::client::{get_or_create_client, track_task};
 use crate::frb_generated::StreamSink;
+
+/// Max pagination requests per `paginate_backwards` call, see there.
+const MAX_PAGINATION_ROUNDS: usize = 5;
+
+/// Timelines of the rooms currently watched, so `paginate_backwards` can reach them.
+/// Weak: the watch task owns the timeline, the entry dies with it.
+static TIMELINES: LazyLock<Mutex<HashMap<String, Weak<Timeline>>>> = LazyLock::new(Default::default);
 
 #[derive(Clone)]
 pub struct MessageSummary {
-    pub event_id: String,
+    /// Stable across a local echo becoming the sent event, use it as the list key.
+    pub id: String,
     pub sender: String,
     pub body: String,
     pub timestamp_ms: i64,
     pub is_own: bool,
 }
 
-/// Latest `limit` text messages of a room, oldest first.
-pub async fn get_messages(homeserver_url: String, room_id: String, limit: u32) -> Result<Vec<MessageSummary>, String> {
-    let client = get_or_create_client(&homeserver_url).await?;
-    let room = get_room(&client, &room_id)?;
-    let own_user_id = client.user_id();
-
-    let mut options = MessagesOptions::backward();
-    options.limit = UInt::from(limit);
-
-    let response = room.messages(options).await.map_err(|e| e.to_string())?;
-
-    // Backward pagination returns newest first, flip it for display order.
-    let messages = response
-        .chunk
-        .iter()
-        .rev()
-        .filter_map(|event| {
-            // Events that fail to deserialize (or aren't text messages) are skipped.
-            let AnySyncTimelineEvent::MessageLike(AnySyncMessageLikeEvent::RoomMessage(
-                SyncMessageLikeEvent::Original(message),
-            )) = event.raw().deserialize().ok()?
-            else {
-                return None;
-            };
-            to_summary(message, own_user_id)
-        })
-        .collect();
-
-    Ok(messages)
-}
-
-/// Streams new text messages of a room as they arrive through the sync loop
-/// (already decrypted). Stops when Dart cancels the stream.
+/// Streams the room's messages (oldest first) as a full list: once right away with
+/// what's cached locally, then again on every change (new messages, older ones from
+/// `paginate_backwards`, decryption catching up). Stops at the first change after
+/// Dart cancels the stream.
 /// Errors go into the stream (a returned Err would never reach the Dart listener).
-pub async fn watch_room_messages(homeserver_url: String, room_id: String, sink: StreamSink<MessageSummary>) {
-    let room = match get_or_create_client(&homeserver_url).await.and_then(|client| get_room(&client, &room_id)) {
-        Ok(room) => room,
+pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: StreamSink<Vec<MessageSummary>>) {
+    let timeline = match build_timeline(&homeserver_url, &room_id).await {
+        Ok(timeline) => Arc::new(timeline),
         Err(e) => {
             let _ = sink.add_error(e);
             return;
         }
     };
+    {
+        let mut timelines = TIMELINES.lock().unwrap_or_else(|e| e.into_inner());
+        timelines.retain(|_, timeline| timeline.strong_count() > 0);
+        timelines.insert(room_id, Arc::downgrade(&timeline));
+    }
 
-    room.add_event_handler(
-        move |event: OriginalSyncRoomMessageEvent, client: Client, handle: EventHandlerHandle| {
-            let sink = sink.clone();
-            async move {
-                let Some(summary) = to_summary(event, client.user_id()) else {
-                    return;
-                };
-                // Sending fails once Dart cancelled the stream, so clean up.
-                if sink.add(summary).is_err() {
-                    client.remove_event_handler(handle);
-                }
+    let (mut items, mut updates) = timeline.subscribe().await;
+    if sink.add(summaries(&items)).is_err() {
+        return;
+    }
+
+    let task = flutter_rust_bridge::spawn(async move {
+        // Keeps the timeline alive for as long as Dart listens.
+        let _timeline = timeline;
+        while let Some(diffs) = updates.next().await {
+            for diff in diffs {
+                diff.apply(&mut items);
             }
-        },
-    );
+            // Sending fails once Dart cancelled the stream.
+            if sink.add(summaries(&items)).is_err() {
+                break;
+            }
+        }
+    });
+    // Aborted on logout, the timeline holds the client.
+    track_task(task.abort_handle()).await;
+}
+
+/// Loads older messages into the watched timeline (they arrive through
+/// `watch_room_timeline`). Returns whether the start of the room was reached.
+///
+/// Repeats while no new message shows up: a page can be made only of events
+/// that aren't displayed (state events, non-text messages), and the UI only asks
+/// again when the list grows. Capped so a room full of hidden events can't loop
+/// for long; the UI can still ask for more.
+pub async fn paginate_backwards(room_id: String, count: u16) -> Result<bool, String> {
+    let timeline = TIMELINES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&room_id)
+        .and_then(Weak::upgrade)
+        .ok_or_else(|| format!("Room {room_id} isn't being watched"))?;
+
+    let before = summaries(&timeline.items().await).len();
+    for _ in 0..MAX_PAGINATION_ROUNDS {
+        let reached_start = timeline.paginate_backwards(count).await.map_err(|e| e.to_string())?;
+        if reached_start {
+            return Ok(true);
+        }
+        if summaries(&timeline.items().await).len() > before {
+            break;
+        }
+    }
+    Ok(false)
 }
 
 /// Sends a plain-text message, returns its event ID.
@@ -88,6 +108,12 @@ pub async fn send_text_message(homeserver_url: String, room_id: String, body: St
     Ok(result.response.event_id.to_string())
 }
 
+async fn build_timeline(homeserver_url: &str, room_id: &str) -> Result<Timeline, String> {
+    let client = get_or_create_client(homeserver_url).await?;
+    let room = get_room(&client, room_id)?;
+    room.timeline().await.map_err(|e| e.to_string())
+}
+
 fn get_room(client: &Client, room_id: &str) -> Result<matrix_sdk::Room, String> {
     let room_id = RoomId::parse(room_id).map_err(|e| e.to_string())?;
     client
@@ -95,17 +121,24 @@ fn get_room(client: &Client, room_id: &str) -> Result<matrix_sdk::Room, String> 
         .ok_or_else(|| format!("Room {room_id} not found"))
 }
 
-/// Only text messages for now, everything else is skipped.
-fn to_summary(message: OriginalSyncRoomMessageEvent, own_user_id: Option<&UserId>) -> Option<MessageSummary> {
-    let MessageType::Text(text) = message.content.msgtype else {
-        return None;
-    };
-
-    Some(MessageSummary {
-        event_id: message.event_id.to_string(),
-        is_own: own_user_id == Some(&*message.sender),
-        sender: message.sender.to_string(),
-        body: text.body,
-        timestamp_ms: i64::from(message.origin_server_ts.0),
-    })
+/// Only text messages for now; everything else (virtual items like date dividers,
+/// state events, other message types, undecryptable events) is skipped.
+fn summaries(items: &Vector<Arc<TimelineItem>>) -> Vec<MessageSummary> {
+    items
+        .iter()
+        .filter_map(|item| {
+            let event = item.as_event()?;
+            let message = event.content().as_message()?;
+            let MessageType::Text(text) = message.msgtype() else {
+                return None;
+            };
+            Some(MessageSummary {
+                id: item.unique_id().0.clone(),
+                sender: event.sender().to_string(),
+                body: text.body.clone(),
+                timestamp_ms: i64::from(event.timestamp().0),
+                is_own: event.is_own(),
+            })
+        })
+        .collect()
 }

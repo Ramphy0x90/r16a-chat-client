@@ -49,3 +49,13 @@ fn room_summaries(client: &Client) -> Vec<RoomSummary> {
         })
         .collect()
 }
+
+/// For screens opened without the name at hand (e.g. a direct link to a room).
+pub async fn get_room_name(homeserver_url: String, room_id: String) -> Result<String, String> {
+    let client = get_or_create_client(&homeserver_url).await?;
+    let room_id = matrix_sdk::ruma::RoomId::parse(&room_id).map_err(|e| e.to_string())?;
+    let room = client
+        .get_room(&room_id)
+        .ok_or_else(|| format!("Room {room_id} not found"))?;
+    Ok(room.name().unwrap_or_else(|| "Unnamed Room".to_string()))
+}

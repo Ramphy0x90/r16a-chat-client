@@ -14,6 +14,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 Stream<List<RoomSummary>> watchRooms({required String homeserverUrl}) =>
     RustLib.instance.api.crateApiRoomsWatchRooms(homeserverUrl: homeserverUrl);
 
+/// For screens opened without the name at hand (e.g. a direct link to a room).
+Future<String> getRoomName({
+  required String homeserverUrl,
+  required String roomId,
+}) => RustLib.instance.api.crateApiRoomsGetRoomName(
+  homeserverUrl: homeserverUrl,
+  roomId: roomId,
+);
+
 class RoomSummary {
   final String id;
   final String name;
