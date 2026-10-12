@@ -1,17 +1,24 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:r16a_chat_client/core/breakpoints.dart';
 import 'package:r16a_chat_client/core/constants.dart';
+import 'package:r16a_chat_client/core/desktop_shell.dart';
+import 'package:r16a_chat_client/core/mobile_shell.dart';
+import 'package:r16a_chat_client/core/nav_section.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
 import 'package:r16a_chat_client/src/rust/api/sync.dart';
 
+/// Wraps every logged-in route. Owns the sync status (banner) and navigation
+/// between sections; the layout itself is [MobileShell] or [DesktopShell].
 class AppShell extends StatefulWidget {
+  /// Current path, e.g. `/chats/!abc:server`.
+  final String location;
   final Widget screen;
 
-  const AppShell({super.key, required this.screen});
+  const AppShell({super.key, required this.location, required this.screen});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -40,25 +47,37 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          SizedBox(width: 56, child: _Navbar()),
-          Expanded(
-            child: Column(
-              children: [
-                _SyncBanner(
-                  state: _syncState,
-                  isLoggingOut: _isLoggingOut,
-                  onLogInAgain: _handleLogInAgain,
-                ),
-                Expanded(child: widget.screen),
-              ],
-            ),
-          ),
-        ],
+    final selected = NavSection.fromLocation(widget.location);
+    // Connecting is left out so a normal startup doesn't flash a banner;
+    // offline startups switch to disconnected after the first failed request.
+    final banner = switch (_syncState) {
+      SyncState.disconnected || SyncState.sessionExpired => _SyncBanner(
+        state: _syncState,
+        isLoggingOut: _isLoggingOut,
+        onLogInAgain: _handleLogInAgain,
       ),
+      SyncState.idle || SyncState.connecting || SyncState.connected => null,
+    };
+
+    if (isDesktopLayout(context)) {
+      return DesktopShell(
+        banner: banner,
+        selected: selected,
+        onSelected: _handleSectionSelected,
+        child: widget.screen,
+      );
+    }
+    return MobileShell(
+      banner: banner,
+      selected: selected,
+      showDock: NavSection.isTopLevel(widget.location),
+      onSelected: _handleSectionSelected,
+      child: widget.screen,
     );
+  }
+
+  void _handleSectionSelected(NavSection section) {
+    context.go(section.route);
   }
 
   /// The token is already dead server-side, so no confirmation: there's
@@ -92,10 +111,10 @@ class _SyncBanner extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     return switch (state) {
-      // Connecting is left out so a normal startup doesn't flash a banner;
-      // offline startups switch to disconnected after the first failed request.
-      SyncState.idle || SyncState.connecting || SyncState.connected =>
-        const SizedBox.shrink(),
+      // AppShell doesn't build the banner in these states.
+      SyncState.idle ||
+      SyncState.connecting ||
+      SyncState.connected => const SizedBox.shrink(),
       SyncState.disconnected => _bar(
         colors.surface,
         Text(
@@ -129,75 +148,6 @@ class _SyncBanner extends StatelessWidget {
       color: background,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: child,
-    );
-  }
-}
-
-class _Navbar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final currentPath = GoRouterState.of(context).matchedLocation;
-
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: EdgeInsetsGeometry.only(top: 10),
-        child: Column(
-          children: [
-            _NavbarIcon(
-              iconPath: 'assets/icons/message.svg',
-              isActive: currentPath.startsWith(Routes.chats),
-              onTap: () => context.go(Routes.chats),
-            ),
-            _NavbarIcon(
-              iconPath: 'assets/icons/settings.svg',
-              isActive: currentPath.startsWith(Routes.settings),
-              onTap: () => context.go(Routes.settings),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavbarIcon extends StatelessWidget {
-  final double iconSize = 25;
-
-  final String iconPath;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _NavbarIcon({
-    required this.iconPath,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return IconButton(
-      icon: SvgPicture.asset(
-        iconPath,
-        width: iconSize,
-        height: iconSize,
-        colorFilter: ColorFilter.mode(
-          isActive ? colors.secondary : colors.onSurfaceVariant,
-          BlendMode.srcIn,
-        ),
-      ),
-      style: ButtonStyle(
-        mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.hovered)) {
-            return colors.secondary.withValues(alpha: 0.1);
-          }
-          return null;
-        }),
-      ),
-      onPressed: onTap,
     );
   }
 }

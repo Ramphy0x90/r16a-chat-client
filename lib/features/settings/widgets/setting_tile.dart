@@ -8,11 +8,15 @@ class SettingTile extends StatelessWidget {
   final String iconPath;
   final VoidCallback onTap;
 
+  /// Highlighted when its screen is open in the desktop detail pane.
+  final bool selected;
+
   const SettingTile({
     super.key,
     required this.title,
     required this.iconPath,
     required this.onTap,
+    this.selected = false,
   });
 
   @override
@@ -30,6 +34,9 @@ class SettingTile extends StatelessWidget {
       /// ),
       title: Text(title),
       trailing: SvgPicture.asset('assets/icons/arrow-go.svg'),
+      selected: selected,
+      selectedTileColor: Theme.of(context).colorScheme.surface,
+      selectedColor: Theme.of(context).colorScheme.onSurface,
       onTap: onTap,
     );
   }

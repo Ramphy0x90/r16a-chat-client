@@ -15,6 +15,11 @@ matrix-sdk-ui = "0.18.0"
 eyeball-im = "0.8"
 futures-util = "0.3"
 
+# Android's NDK has no libsqlite3 to link against: compile SQLite into the app
+# there. Desktop keeps linking the system library (libsqlite3-dev).
+[target.'cfg(target_os = "android")'.dependencies]
+matrix-sdk = { version = "0.18.0", features = ["bundled-sqlite"] }
+
 [lib]
 crate-type = ["cdylib", "staticlib"]
 

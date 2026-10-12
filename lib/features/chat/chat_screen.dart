@@ -6,7 +6,10 @@ import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/src/rust/api/rooms.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  /// The room open in the desktop detail pane, highlighted in the list.
+  final String? selectedRoomId;
+
+  const ChatScreen({super.key, this.selectedRoomId});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -32,29 +35,38 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The app bar also keeps the content below the status bar on mobile.
+    return Scaffold(
+      appBar: AppBar(title: const Text('Chats')),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_errorMessage != null) {
-      return Scaffold(body: Center(child: Text(_errorMessage!)));
+      return Center(child: Text(_errorMessage!));
     }
 
     if (_rooms.isEmpty) {
-      return const Scaffold(body: Center(child: Text('No chats yet')));
+      return const Center(child: Text('No chats yet'));
     }
 
-    return Scaffold(
-      body: ListView.builder(
-        itemCount: _rooms.length,
-        itemBuilder: (context, index) {
-          final room = _rooms[index];
-          return ListTile(
-            title: Text(room.name),
-            onTap: () => context.go(Routes.room(room.id), extra: room.name),
-          );
-        },
-      ),
+    return ListView.builder(
+      itemCount: _rooms.length,
+      itemBuilder: (context, index) {
+        final room = _rooms[index];
+        return ListTile(
+          title: Text(room.name),
+          selected: room.id == widget.selectedRoomId,
+          selectedTileColor: Theme.of(context).colorScheme.surface,
+          selectedColor: Theme.of(context).colorScheme.onSurface,
+          onTap: () => context.go(Routes.room(room.id), extra: room.name),
+        );
+      },
     );
   }
 

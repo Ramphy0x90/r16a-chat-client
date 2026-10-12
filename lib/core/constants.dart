@@ -8,6 +8,7 @@ class Routes {
   static const login = '/login';
   static const chats = '/chats';
   static String room(String roomId) => '$chats/${Uri.encodeComponent(roomId)}';
+  static const contacts = '/contacts';
 
   /// Settings routes
   static const settings = "/settings";
