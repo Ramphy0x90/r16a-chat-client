@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'colors.dart';
 
 /// Accent usage (from the Pencil mockups, zmey-client.pen):
@@ -121,6 +122,17 @@ class AppTheme {
       canvasColor: bg,
       dividerColor: surface,
       iconTheme: IconThemeData(color: text),
+      // AppBar's automatic back button uses the app's SVG arrow, tinted with
+      // the surrounding icon color (the app bar's foreground).
+      actionIconTheme: ActionIconThemeData(
+        backButtonIconBuilder: (context) => SvgPicture.asset(
+          'assets/icons/arrow-back.svg',
+          colorFilter: ColorFilter.mode(
+            IconTheme.of(context).color ?? text,
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         foregroundColor: text,

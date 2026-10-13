@@ -193,7 +193,7 @@ Use `rust/build.sh` for the standard build loop — it wraps `flutter_rust_bridg
 - An outer `ShellRoute` wraps `AppShell` (sync banner + mobile/desktop shell) around the logged-in routes. Inside it, **one `ShellRoute` per section** (`/chats`, `/contacts`, `/settings`) builds a `MasterDetailShell` whose list pane is the section's list screen; the section's sub-screens are nested `GoRoute`s (`/chats/:roomId`, `/settings/profile`, ...) that land in the detail pane on desktop and full-screen on mobile.
 - Routes use `pageBuilder` with `_page()`: `NoTransitionPage` on desktop (switching the detail pane is instant), `MaterialPage` on mobile.
 - List screens get the current selection from the shell route (`ChatScreen(selectedRoomId:)`, `SettingsScreen(selectedLocation:)`) to highlight it in the desktop list pane.
-- `DetailScaffold` wraps `Scaffold(appBar: AppBar(...))` for drill-down screens and relies on `AppBar`'s automatic back button (which calls `context.pop()` internally) — don't hand-roll back buttons.
+- `DetailScaffold` wraps `Scaffold(appBar: AppBar(...))` for drill-down screens and relies on `AppBar`'s automatic back button (which calls `context.pop()` internally) — don't hand-roll back buttons. Its icon is the app's `arrow-back.svg`, set once in `AppTheme` (`actionIconTheme.backButtonIconBuilder`).
 
 ## Theming
 
@@ -245,7 +245,6 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 - Settings sub-screens Security and Storage are routed placeholders with no real content yet (Customize has the theme choice). Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
 - Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; no palette error color (Material red used); Inter not bundled yet; Enter always sends in the composer (no newline on mobile).
 - Redesign in progress (mockups in `/home/ramphy/Documents/Design/zmey-client.pen`): theme foundation and navigation shell done; next is each screen's new look (login, chats, room, settings, contacts). Until then: screens keep their old look; drill-down screens show `DetailScaffold`'s back button even inside the desktop detail pane; Contacts is a placeholder; the dock/rail use `profile.svg` as a stand-in contacts icon; the rail doesn't show the user's own avatar yet. Icons missing from `assets/icons` are drawn by the user (marked "MISSING" in the mockups).
-- `DetailScaffold` hand-rolls its back button (contradicts the go_router conventions above).
 
 ## Build commands
 
