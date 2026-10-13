@@ -868,6 +868,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UtdReason dco_decode_box_autoadd_utd_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_utd_reason(raw);
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -935,8 +941,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MessageSummary dco_decode_message_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return MessageSummary(
       id: dco_decode_String(arr[0]),
       kind: dco_decode_message_kind(arr[1]),
@@ -947,6 +953,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isEdited: dco_decode_bool(arr[6]),
       reactions: dco_decode_list_reaction_summary(arr[7]),
       media: dco_decode_opt_box_autoadd_media_info(arr[8]),
+      utdReason: dco_decode_opt_box_autoadd_utd_reason(arr[9]),
     );
   }
 
@@ -972,6 +979,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MediaInfo? dco_decode_opt_box_autoadd_media_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_media_info(raw);
+  }
+
+  @protected
+  UtdReason? dco_decode_opt_box_autoadd_utd_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_utd_reason(raw);
   }
 
   @protected
@@ -1049,6 +1062,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UtdReason dco_decode_utd_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UtdReason.values[raw as int];
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -1107,6 +1126,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MediaInfo sse_decode_box_autoadd_media_info(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_media_info(deserializer));
+  }
+
+  @protected
+  UtdReason sse_decode_box_autoadd_utd_reason(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_utd_reason(deserializer));
   }
 
   @protected
@@ -1213,6 +1238,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_isEdited = sse_decode_bool(deserializer);
     var var_reactions = sse_decode_list_reaction_summary(deserializer);
     var var_media = sse_decode_opt_box_autoadd_media_info(deserializer);
+    var var_utdReason = sse_decode_opt_box_autoadd_utd_reason(deserializer);
     return MessageSummary(
       id: var_id,
       kind: var_kind,
@@ -1223,6 +1249,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isEdited: var_isEdited,
       reactions: var_reactions,
       media: var_media,
+      utdReason: var_utdReason,
     );
   }
 
@@ -1267,6 +1294,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_media_info(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  UtdReason? sse_decode_opt_box_autoadd_utd_reason(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_utd_reason(deserializer));
     } else {
       return null;
     }
@@ -1345,6 +1385,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_decode_unit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  UtdReason sse_decode_utd_reason(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return UtdReason.values[inner];
   }
 
   @protected
@@ -1441,6 +1488,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_media_info(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_utd_reason(
+    UtdReason self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_utd_reason(self, serializer);
   }
 
   @protected
@@ -1545,6 +1601,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.isEdited, serializer);
     sse_encode_list_reaction_summary(self.reactions, serializer);
     sse_encode_opt_box_autoadd_media_info(self.media, serializer);
+    sse_encode_opt_box_autoadd_utd_reason(self.utdReason, serializer);
   }
 
   @protected
@@ -1590,6 +1647,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_media_info(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_utd_reason(
+    UtdReason? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_utd_reason(self, serializer);
     }
   }
 
@@ -1659,5 +1729,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_utd_reason(UtdReason self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 }

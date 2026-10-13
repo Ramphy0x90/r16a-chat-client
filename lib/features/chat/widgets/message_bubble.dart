@@ -133,7 +133,7 @@ class MessageBubble extends StatelessWidget {
         style: TextStyle(color: textColor, fontStyle: FontStyle.italic),
       ),
       MessageKind.unableToDecrypt => Text(
-        'Unable to decrypt this message',
+        _utdText(message.utdReason),
         style: placeholderStyle,
       ),
       MessageKind.redacted => Text('Message deleted', style: placeholderStyle),
@@ -147,6 +147,19 @@ class MessageBubble extends StatelessWidget {
       MessageKind.file => _buildAttachment(colors, placeholderStyle),
     };
   }
+
+  static String _utdText(UtdReason? reason) => switch (reason) {
+    UtdReason.sentBeforeJoined =>
+      "Can't decrypt: sent before you joined this room",
+    UtdReason.sentBeforeThisDevice =>
+      "Can't decrypt: sent before you signed in on this device",
+    UtdReason.withheldBySender =>
+      "Can't decrypt: the sender didn't share the key with this device",
+    UtdReason.untrustedSender =>
+      "Can't decrypt: the sender's device isn't trusted",
+    // The SDK retries when the keys arrive.
+    UtdReason.unknown || null => 'Waiting for the key to decrypt this message',
+  };
 
   Widget _buildAttachment(ColorScheme colors, TextStyle placeholderStyle) {
     final media = message.media;

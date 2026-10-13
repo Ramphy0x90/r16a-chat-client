@@ -3,9 +3,10 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 use eyeball_im::Vector;
 use futures_util::StreamExt;
 use matrix_sdk::Client;
+use matrix_sdk_base::crypto::types::events::UtdCause;
 use matrix_sdk::ruma::{RoomId, UserId};
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
-use matrix_sdk_ui::timeline::{MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
+use matrix_sdk_ui::timeline::{EncryptedMessage, MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
 use crate::api::client::{get_or_create_client, track_task};
 use crate::api::media::{media_info, MediaInfo};
 use crate::frb_generated::StreamSink;
@@ -37,6 +38,23 @@ pub enum MessageKind {
     Unsupported,
 }
 
+/// Why an `UnableToDecrypt` message can't be read, the SDK's `UtdCause` grouped
+/// by what it means for the user.
+#[derive(Clone, Copy)]
+pub enum UtdReason {
+    /// No known cause (keys may still arrive, the SDK retries).
+    Unknown,
+    /// Sent while we weren't a member of the room.
+    SentBeforeJoined,
+    /// Sent before this device existed, and the keys aren't available here
+    /// (no key backup, or the device isn't verified to use it).
+    SentBeforeThisDevice,
+    /// The sender didn't share the keys with this device.
+    WithheldBySender,
+    /// Refused by the SDK's trust rules: the sender's device or identity isn't trusted.
+    UntrustedSender,
+}
+
 #[derive(Clone)]
 pub struct MessageSummary {
     /// Stable across a local echo becoming the sent event, use it as the list key.
@@ -53,6 +71,8 @@ pub struct MessageSummary {
     pub reactions: Vec<ReactionSummary>,
     /// Set for `Image` and `File`.
     pub media: Option<MediaInfo>,
+    /// Set for `UnableToDecrypt`.
+    pub utd_reason: Option<UtdReason>,
 }
 
 #[derive(Clone)]
@@ -182,6 +202,10 @@ fn summaries(items: &Vector<Arc<TimelineItem>>, own_user_id: &UserId) -> Vec<Mes
                 is_edited: content.as_message().is_some_and(|message| message.is_edited()),
                 reactions: reaction_summaries(content, own_user_id),
                 media,
+                utd_reason: match &content.kind {
+                    MsgLikeKind::UnableToDecrypt(message) => Some(utd_reason(message)),
+                    _ => None,
+                },
             })
         })
         .collect()
@@ -218,6 +242,24 @@ fn kind_and_body(kind: &MsgLikeKind) -> (MessageKind, String) {
         MsgLikeKind::Sticker(sticker) => (MessageKind::Unsupported, sticker.content().body.clone()),
         MsgLikeKind::Poll(_) | MsgLikeKind::Other(_) | MsgLikeKind::LiveLocation(_) => {
             (MessageKind::Unsupported, String::new())
+        }
+    }
+}
+
+fn utd_reason(message: &EncryptedMessage) -> UtdReason {
+    let EncryptedMessage::MegolmV1AesSha2 { cause, .. } = message else {
+        return UtdReason::Unknown;
+    };
+    match cause {
+        UtdCause::Unknown => UtdReason::Unknown,
+        UtdCause::SentBeforeWeJoined => UtdReason::SentBeforeJoined,
+        UtdCause::HistoricalMessageAndBackupIsDisabled
+        | UtdCause::HistoricalMessageAndDeviceIsUnverified => UtdReason::SentBeforeThisDevice,
+        UtdCause::WithheldForUnverifiedOrInsecureDevice | UtdCause::WithheldBySender => {
+            UtdReason::WithheldBySender
+        }
+        UtdCause::VerificationViolation | UtdCause::UnsignedDevice | UtdCause::UnknownDevice => {
+            UtdReason::UntrustedSender
         }
     }
 }

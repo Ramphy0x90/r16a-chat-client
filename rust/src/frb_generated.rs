@@ -964,6 +964,7 @@ impl SseDecode for crate::api::messages::MessageSummary {
         let mut var_reactions =
             <Vec<crate::api::messages::ReactionSummary>>::sse_decode(deserializer);
         let mut var_media = <Option<crate::api::media::MediaInfo>>::sse_decode(deserializer);
+        let mut var_utdReason = <Option<crate::api::messages::UtdReason>>::sse_decode(deserializer);
         return crate::api::messages::MessageSummary {
             id: var_id,
             kind: var_kind,
@@ -974,6 +975,7 @@ impl SseDecode for crate::api::messages::MessageSummary {
             is_edited: var_isEdited,
             reactions: var_reactions,
             media: var_media,
+            utd_reason: var_utdReason,
         };
     }
 }
@@ -1016,6 +1018,17 @@ impl SseDecode for Option<crate::api::media::MediaInfo> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::media::MediaInfo>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::messages::UtdReason> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::messages::UtdReason>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1112,6 +1125,21 @@ impl SseDecode for u8 {
 impl SseDecode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
+}
+
+impl SseDecode for crate::api::messages::UtdReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::messages::UtdReason::Unknown,
+            1 => crate::api::messages::UtdReason::SentBeforeJoined,
+            2 => crate::api::messages::UtdReason::SentBeforeThisDevice,
+            3 => crate::api::messages::UtdReason::WithheldBySender,
+            4 => crate::api::messages::UtdReason::UntrustedSender,
+            _ => unreachable!("Invalid variant for UtdReason: {}", inner),
+        };
+    }
 }
 
 fn pde_ffi_dispatcher_primary_impl(
@@ -1224,6 +1252,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::messages::MessageSummary {
             self.is_edited.into_into_dart().into_dart(),
             self.reactions.into_into_dart().into_dart(),
             self.media.into_into_dart().into_dart(),
+            self.utd_reason.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1322,6 +1351,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::sync::SyncState>
     for crate::api::sync::SyncState
 {
     fn into_into_dart(self) -> crate::api::sync::SyncState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::messages::UtdReason {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Unknown => 0.into_dart(),
+            Self::SentBeforeJoined => 1.into_dart(),
+            Self::SentBeforeThisDevice => 2.into_dart(),
+            Self::WithheldBySender => 3.into_dart(),
+            Self::UntrustedSender => 4.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::messages::UtdReason
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::messages::UtdReason>
+    for crate::api::messages::UtdReason
+{
+    fn into_into_dart(self) -> crate::api::messages::UtdReason {
         self
     }
 }
@@ -1480,6 +1533,7 @@ impl SseEncode for crate::api::messages::MessageSummary {
         <bool>::sse_encode(self.is_edited, serializer);
         <Vec<crate::api::messages::ReactionSummary>>::sse_encode(self.reactions, serializer);
         <Option<crate::api::media::MediaInfo>>::sse_encode(self.media, serializer);
+        <Option<crate::api::messages::UtdReason>>::sse_encode(self.utd_reason, serializer);
     }
 }
 
@@ -1519,6 +1573,16 @@ impl SseEncode for Option<crate::api::media::MediaInfo> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::media::MediaInfo>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::messages::UtdReason> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::messages::UtdReason>::sse_encode(value, serializer);
         }
     }
 }
@@ -1602,6 +1666,25 @@ impl SseEncode for u8 {
 impl SseEncode for () {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
+}
+
+impl SseEncode for crate::api::messages::UtdReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::messages::UtdReason::Unknown => 0,
+                crate::api::messages::UtdReason::SentBeforeJoined => 1,
+                crate::api::messages::UtdReason::SentBeforeThisDevice => 2,
+                crate::api::messages::UtdReason::WithheldBySender => 3,
+                crate::api::messages::UtdReason::UntrustedSender => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]

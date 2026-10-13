@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 import 'media.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`, `utd_reason`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
@@ -92,6 +92,9 @@ class MessageSummary {
   /// Set for `Image` and `File`.
   final MediaInfo? media;
 
+  /// Set for `UnableToDecrypt`.
+  final UtdReason? utdReason;
+
   const MessageSummary({
     required this.id,
     required this.kind,
@@ -102,6 +105,7 @@ class MessageSummary {
     required this.isEdited,
     required this.reactions,
     this.media,
+    this.utdReason,
   });
 
   @override
@@ -114,7 +118,8 @@ class MessageSummary {
       isOwn.hashCode ^
       isEdited.hashCode ^
       reactions.hashCode ^
-      media.hashCode;
+      media.hashCode ^
+      utdReason.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -129,7 +134,8 @@ class MessageSummary {
           isOwn == other.isOwn &&
           isEdited == other.isEdited &&
           reactions == other.reactions &&
-          media == other.media;
+          media == other.media &&
+          utdReason == other.utdReason;
 }
 
 class ReactionSummary {
@@ -155,4 +161,24 @@ class ReactionSummary {
           key == other.key &&
           count == other.count &&
           reactedByMe == other.reactedByMe;
+}
+
+/// Why an `UnableToDecrypt` message can't be read, the SDK's `UtdCause` grouped
+/// by what it means for the user.
+enum UtdReason {
+  /// No known cause (keys may still arrive, the SDK retries).
+  unknown,
+
+  /// Sent while we weren't a member of the room.
+  sentBeforeJoined,
+
+  /// Sent before this device existed, and the keys aren't available here
+  /// (no key backup, or the device isn't verified to use it).
+  sentBeforeThisDevice,
+
+  /// The sender didn't share the keys with this device.
+  withheldBySender,
+
+  /// Refused by the SDK's trust rules: the sender's device or identity isn't trusted.
+  untrustedSender,
 }
