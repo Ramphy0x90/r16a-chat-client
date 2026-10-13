@@ -22,18 +22,14 @@ class SettingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      /// MIN: Idk yet if I want icon on the left
-      /// leading: SvgPicture.asset(
-      ///   iconPath,
-      ///   width: iconSize,
-      ///   height: iconSize,
-      ///   colorFilter: ColorFilter.mode(
-      ///     Theme.of(context).colorScheme.onSurfaceVariant,
-      ///     BlendMode.srcIn,
-      ///   ),
-      /// ),
       title: Text(title),
-      trailing: SvgPicture.asset('assets/icons/arrow-go.svg'),
+      trailing: SvgPicture.asset(
+        'assets/icons/arrow-go.svg',
+        colorFilter: ColorFilter.mode(
+          Theme.of(context).colorScheme.onSurfaceVariant,
+          BlendMode.srcIn,
+        ),
+      ),
       selected: selected,
       selectedTileColor: Theme.of(context).colorScheme.surface,
       selectedColor: Theme.of(context).colorScheme.onSurface,

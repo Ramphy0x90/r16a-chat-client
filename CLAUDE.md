@@ -32,6 +32,7 @@ lib/
     chat/
       screens/
       widgets/
+    contacts/      # placeholder for now
     settings/
       screens/
       widgets/
@@ -64,7 +65,11 @@ This was violated once (business logic was put directly into `LoginForm` instead
 
 ### Mobile vs desktop layouts
 
-Where a screen needs meaningfully different layouts per breakpoint (e.g. `AuthScaffold`), use `LayoutBuilder` and **separate widgets per breakpoint** (e.g. a mobile-specific widget and a desktop-specific widget), not one widget full of conditional branches.
+Where a screen needs meaningfully different layouts per breakpoint (e.g. `AuthScaffold`), use `LayoutBuilder` and **separate widgets per breakpoint** (e.g. a mobile-specific widget and a desktop-specific widget), not one widget full of conditional branches. Shared building blocks (bubbles, composer, tiles) stay single widgets.
+
+Mobile is the primary target. One breakpoint, `desktopBreakpoint = 840` (`lib/core/breakpoints.dart`, `isDesktopLayout(context)`):
+- **Mobile** (`MobileShell`): one screen at a time, floating dock (Chats / Contacts / Settings) over the content, only on the three top-level routes; sub-screens (open room, settings pages) are full-screen with a back button. The shell adds the dock's height to `MediaQuery.padding.bottom`, so scroll views end above it — don't add manual bottom padding for the dock. Nothing above a screen reserves the status bar either: every routed screen needs an `AppBar` (or `SafeArea`) and scrollable content, or its top rows end up under the status bar.
+- **Desktop** (`DesktopShell`): 72px side rail + per-section `MasterDetailShell` (360px list pane + routed detail pane). The list pane stays mounted while the detail changes. A section's own route (`/chats`) shows the list on mobile and an `EmptyPane` placeholder on desktop (`MasterDetailHome`).
 
 ## Rust ↔ Flutter bridge (flutter_rust_bridge + Cargokit)
 
@@ -171,6 +176,10 @@ Bridge functions return `Result<T, String>` (except `StreamSink` functions, whic
 - **`StreamSink<T>` isn't `Clone`** unless `T: Clone` — derive `Clone` on bridge structs that are sent through a sink cloned into an event handler (e.g. `MessageSummary`).
 - **Plain `cargo clippy` fails on generated code** (`not_unsafe_ptr_arg_deref` in `frb_generated.rs` boilerplate). Lint hand-written code with `cargo clippy -- -A clippy::not_unsafe_ptr_arg_deref`.
 - **`u64` crosses the bridge as Dart `BigInt`** — use `i64` (→ `int`) for things like timestamps.
+- **Android build: `Could not find method exec()` in `cargokit/gradle/plugin.gradle`**: Gradle 9 removed `Project.exec()`. The vendored Cargokit is patched to use an injected `ExecOperations` — keep that patch if Cargokit is ever re-copied.
+- **Android build: `ld.lld: error: unable to find library -lsqlite3`**: the NDK ships no SQLite for apps. `rust/Cargo.toml` enables matrix-sdk's `bundled-sqlite` for `target_os = "android"` only (desktop still links the system lib).
+- **Android build: `checkDebugAarMetadata` / "requires compileSdk 34 or later"**: `rust_builder/android/build.gradle` must use `compileSdkVersion 36` (was 33 from the template).
+- **Android builds are slow the first time**: `flutter build apk` compiles the Rust crate (matrix-sdk) once per ABI (4 of them). Use `flutter run -d <device>` or `--target-platform android-x64` while developing.
 - **`WidgetsFlutterBinding.ensureInitialized()`**: must be the very first line of `main()`. Without it, `flutter_secure_storage`'s `read()` throws a `ServicesBinding.instance` error when called before `runApp()`.
 
 ### Dev loop
@@ -181,22 +190,36 @@ Use `rust/build.sh` for the standard build loop — it wraps `flutter_rust_bridg
 
 - Route path strings live as `static const` fields on a `Routes` class (`lib/core/routes.dart`) — never hardcode raw path strings elsewhere.
 - `GoRouter` config (`lib/core/router.dart`) uses a `redirect` function as the auth guard, based on whether `SessionStorage` has a stored session. **Known limitation**: this only checks session *existence* in storage, not validity against the server — see "Not yet done."
-- `ShellRoute` wraps `AppShell` around the persistent-nav routes (`/chats`, `/settings`), with nested `GoRoute`s for sub-screens (e.g. settings sections).
+- An outer `ShellRoute` wraps `AppShell` (sync banner + mobile/desktop shell) around the logged-in routes. Inside it, **one `ShellRoute` per section** (`/chats`, `/contacts`, `/settings`) builds a `MasterDetailShell` whose list pane is the section's list screen; the section's sub-screens are nested `GoRoute`s (`/chats/:roomId`, `/settings/profile`, ...) that land in the detail pane on desktop and full-screen on mobile.
+- Routes use `pageBuilder` with `_page()`: `NoTransitionPage` on desktop (switching the detail pane is instant), `MaterialPage` on mobile.
+- List screens get the current selection from the shell route (`ChatScreen(selectedRoomId:)`, `SettingsScreen(selectedLocation:)`) to highlight it in the desktop list pane.
 - `DetailScaffold` wraps `Scaffold(appBar: AppBar(...))` for drill-down screens and relies on `AppBar`'s automatic back button (which calls `context.pop()` internally) — don't hand-roll back buttons.
 
 ## Theming
 
 Two-layer system:
 1. `lib/theme/colors.dart` — `ZmeyColors`: raw hex palette, light/dark variants (backgrounds, accent maroon, accent gold, text primary/secondary).
-2. `lib/theme/app_theme.dart` — `AppTheme.light` / `AppTheme.dark`: maps `ZmeyColors` into Flutter `ColorScheme` (`primary`, `secondary`, `surface`, `onSurface`, `onSurfaceVariant`).
+2. `lib/theme/app_theme.dart` — `AppTheme.light` / `AppTheme.dark`, both built by one `_build()` from `ZmeyColors` values: the full `ColorScheme` (every role set explicitly, so nothing falls back to Material's baseline purple) plus component themes (buttons, inputs, app bar, dialogs, snackbars, cursor, spinners). Prefer the theme over inline styles in widgets.
 
-**Intentional accent swap — don't "fix" this back**: gold is the primary accent in **light** mode, maroon is the primary accent in **dark** mode. This was confirmed deliberately after extensive mockup iteration. If this looks backwards, it isn't — leave it.
+**`ZmeyColors` is the official palette and the source of truth** — don't add colors. If a design needs one that isn't there, ask. (Exception for now: `error` is Material's default red, the palette has no error color yet.)
+
+**Accent roles — intentional, don't "fix" them back** (agreed from the Pencil mockups, `zmey-client.pen`, Oct 2026; replaces the old "gold is primary in light mode" rule):
+- `primary` = filled accents (buttons, own bubbles, send button) = **maroon in both modes**. Text/icons on it use `onPrimary` (lightBg / darkTextPrimary — no white in the palette).
+- `secondary` = text accents (links, active nav, sender names, focus border, cursor, spinners) = **maroon in light, gold in dark**. Dark maroon is near-invisible on the dark background, hence the split.
+- `tertiary` = gold highlights (unread badges) in both modes, `onTertiary` = lightTextPrimary.
+- `surface` = cards, other people's bubbles, inputs; the page background is `scaffoldBackgroundColor` (lightBg / darkBg).
+
+A spinner inside a filled button must pass `onPrimary` explicitly (the default spinner color is `secondary`, i.e. maroon on maroon in light mode).
+
+Font: `fontFamily: 'Inter'` is set, but the font files aren't bundled yet (the user adds them under `assets/fonts` + a `fonts:` entry in pubspec). Until then Flutter falls back to the platform font.
+
+Theme mode: system by default, user override in Settings > Customize. `ThemeSettings` (`lib/services/theme_settings.dart`) holds a static `ValueNotifier<ThemeMode>` that `MyApp` listens to, persisted with `shared_preferences` (device preference, survives logout). `ThemeSettings.load()` runs in `main()` before `runApp`.
 
 Icon theming: SVG icons use `flutter_svg` with `colorFilter`/`BlendMode.srcIn` to tint them per the current theme rather than shipping separate light/dark icon assets.
 
 ## State management
 
-Currently manual `StatefulWidget` + `setState` throughout. **Riverpod is the intended direction but has not been introduced yet.** Don't introduce it opportunistically mid-feature — it should be a deliberate, scoped migration when it's actually decided to start.
+Currently manual `StatefulWidget` + `setState` throughout (plus one Flutter `ValueNotifier` for the app-wide theme mode, see Theming). **Riverpod is the intended direction but has not been introduced yet.** Don't introduce it opportunistically mid-feature — it should be a deliberate, scoped migration when it's actually decided to start.
 
 ## Assets
 
@@ -219,9 +242,10 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 - Every timeline change re-maps and re-sends the whole message list across the bridge; fine for now, worth revisiting for rooms with long loaded histories.
 - Room screen: text, notices, emotes, "unable to decrypt" and "message deleted" are rendered (`MessageKind`); images show inline (tap → full-screen viewer), files/videos/audio show as a row with a Save button (videos/audio aren't playable); stickers/polls/locations show a "(not supported yet)" placeholder with the fallback text. State events (joins, renames...) are skipped. The UTD placeholder doesn't explain *why* (the SDK's `UtdCause`, e.g. sent before joining, isn't passed through). Edits (applied by the Timeline, "· edited" next to the time) and reactions (chips under the bubble, highlighted when you reacted) are display only: no editing, reacting or un-reacting yet, and no "who reacted" list. No local echo: sending uses `room.send`, not the send queue / `timeline.send`. Room name comes from go_router `extra`, fetched with `get_room_name` on direct navigation.
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
-- Settings sub-screens Security, Customize and Storage are routed placeholders with no real content yet. Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
-- Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; maroon `primary` makes the cursor/spinners near-invisible in dark mode app-wide (fixed locally in the room screen only); Enter always sends in the composer (no newline on mobile).
-- `DetailScaffold` hand-rolls its back button (contradicts the go_router conventions above) and its SVG isn't theme-tinted.
+- Settings sub-screens Security and Storage are routed placeholders with no real content yet (Customize has the theme choice). Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
+- Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; no palette error color (Material red used); Inter not bundled yet; Enter always sends in the composer (no newline on mobile).
+- Redesign in progress (mockups in `/home/ramphy/Documents/Design/zmey-client.pen`): theme foundation and navigation shell done; next is each screen's new look (login, chats, room, settings, contacts). Until then: screens keep their old look; drill-down screens show `DetailScaffold`'s back button even inside the desktop detail pane; Contacts is a placeholder; the dock/rail use `profile.svg` as a stand-in contacts icon; the rail doesn't show the user's own avatar yet. Icons missing from `assets/icons` are drawn by the user (marked "MISSING" in the mockups).
+- `DetailScaffold` hand-rolls its back button (contradicts the go_router conventions above).
 
 ## Build commands
 

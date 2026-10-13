@@ -10,11 +10,18 @@ class DetailScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final iconColor =
+        theme.appBarTheme.foregroundColor ?? theme.colorScheme.onSurface;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
         leading: IconButton(
-          icon: SvgPicture.asset('assets/icons/arrow-back.svg'),
+          icon: SvgPicture.asset(
+            'assets/icons/arrow-back.svg',
+            colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
+          ),
           onPressed: () => context.pop(),
         ),
       ),
