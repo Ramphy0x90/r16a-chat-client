@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1256343458;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1626465114;
 
 // Section: executor
 
@@ -654,6 +654,41 @@ fn wire__crate__api__sync__start_sync_impl(
         },
     )
 }
+fn wire__crate__api__messages__unwatch_room_timeline_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "unwatch_room_timeline",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_watch_id = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok({
+                        crate::api::messages::unwatch_room_timeline(api_watch_id);
+                    })?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__messages__watch_room_timeline_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -678,6 +713,7 @@ fn wire__crate__api__messages__watch_room_timeline_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_homeserver_url = <String>::sse_decode(&mut deserializer);
             let api_room_id = <String>::sse_decode(&mut deserializer);
+            let api_watch_id = <i64>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
                 Vec<crate::api::messages::MessageSummary>,
                 flutter_rust_bridge::for_generated::SseCodec,
@@ -690,6 +726,7 @@ fn wire__crate__api__messages__watch_room_timeline_impl(
                             crate::api::messages::watch_room_timeline(
                                 api_homeserver_url,
                                 api_room_id,
+                                api_watch_id,
                                 api_sink,
                             )
                             .await;
@@ -1167,11 +1204,17 @@ fn pde_ffi_dispatcher_primary_impl(
         14 => wire__crate__api__profile__set_display_name_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__client__set_store_impl(port, ptr, rust_vec_len, data_len),
         16 => wire__crate__api__sync__start_sync_impl(port, ptr, rust_vec_len, data_len),
-        17 => {
+        17 => wire__crate__api__messages__unwatch_room_timeline_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        18 => {
             wire__crate__api__messages__watch_room_timeline_impl(port, ptr, rust_vec_len, data_len)
         }
-        18 => wire__crate__api__rooms__watch_rooms_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__sync__watch_sync_state_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__rooms__watch_rooms_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__sync__watch_sync_state_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

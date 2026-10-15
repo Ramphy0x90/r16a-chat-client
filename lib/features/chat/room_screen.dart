@@ -27,6 +27,11 @@ class RoomScreen extends StatefulWidget {
 class _RoomScreenState extends State<RoomScreen> {
   static const _pageSize = 30;
 
+  /// Per screen, not per room: a new screen for the same room can start
+  /// before the old one is disposed (e.g. resizing across the breakpoint).
+  static int _nextWatchId = 0;
+  final int _watchId = _nextWatchId++;
+
   List<MessageSummary> _messages = [];
   String? _roomName;
   bool _isLoading = true;
@@ -51,6 +56,9 @@ class _RoomScreenState extends State<RoomScreen> {
   @override
   void dispose() {
     _timelineSubscription?.cancel();
+    // Rust can't tell the stream was cancelled until its next send, this
+    // drops the room's timeline right away.
+    unwatchRoomTimeline(watchId: _watchId);
     super.dispose();
   }
 
@@ -98,6 +106,7 @@ class _RoomScreenState extends State<RoomScreen> {
         watchRoomTimeline(
           homeserverUrl: AppConstants.defaultHomeserverUrl,
           roomId: widget.roomId,
+          watchId: _watchId,
         ).listen(
           (messages) {
             if (!mounted) return;

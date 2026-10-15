@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex, Weak};
+use tokio::task::AbortHandle;
 use eyeball_im::Vector;
 use futures_util::StreamExt;
 use matrix_sdk::Client;
@@ -17,6 +18,10 @@ const MAX_PAGINATION_ROUNDS: usize = 5;
 /// Timelines of the rooms currently watched, so `paginate_backwards` can reach them.
 /// Weak: the watch task owns the timeline, the entry dies with it.
 static TIMELINES: LazyLock<Mutex<HashMap<String, Weak<Timeline>>>> = LazyLock::new(Default::default);
+
+/// Running `watch_room_timeline` tasks by the caller's watch id, so
+/// `unwatch_room_timeline` can stop one right away.
+static WATCHES: LazyLock<Mutex<HashMap<i64, AbortHandle>>> = LazyLock::new(Default::default);
 
 #[derive(Clone, Copy)]
 pub enum MessageKind {
@@ -85,10 +90,18 @@ pub struct ReactionSummary {
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
-/// `paginate_backwards`, decryption catching up). Stops at the first change after
-/// Dart cancels the stream.
+/// `paginate_backwards`, decryption catching up). Stopped by
+/// `unwatch_room_timeline(watch_id)`; `watch_id` is unique per call (chosen by
+/// Dart), not per room, so a second watch of the same room isn't affected.
+/// Without the unwatch it would only stop at the first change after Dart
+/// cancels the stream (sending fails then).
 /// Errors go into the stream (a returned Err would never reach the Dart listener).
-pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: StreamSink<Vec<MessageSummary>>) {
+pub async fn watch_room_timeline(
+    homeserver_url: String,
+    room_id: String,
+    watch_id: i64,
+    sink: StreamSink<Vec<MessageSummary>>,
+) {
     let timeline = match build_timeline(&homeserver_url, &room_id).await {
         Ok(timeline) => Arc::new(timeline),
         Err(e) => {
@@ -120,9 +133,28 @@ pub async fn watch_room_timeline(homeserver_url: String, room_id: String, sink: 
                 break;
             }
         }
+        lock_watches().remove(&watch_id);
     });
+    {
+        let mut watches = lock_watches();
+        watches.retain(|_, task| !task.is_finished());
+        watches.insert(watch_id, task.abort_handle());
+    }
     // Aborted on logout, the timeline holds the client.
     track_task(task.abort_handle()).await;
+}
+
+/// Stops a `watch_room_timeline` (dropping its timeline). Call it when
+/// cancelling the stream. A no-op if it already ended; if it hasn't started its
+/// task yet, it ends at its first change instead.
+pub fn unwatch_room_timeline(watch_id: i64) {
+    if let Some(task) = lock_watches().remove(&watch_id) {
+        task.abort();
+    }
+}
+
+fn lock_watches() -> std::sync::MutexGuard<'static, HashMap<i64, AbortHandle>> {
+    WATCHES.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// Loads older messages into the watched timeline (they arrive through

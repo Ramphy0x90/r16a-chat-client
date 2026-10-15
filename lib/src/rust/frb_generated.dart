@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1256343458;
+  int get rustContentHash => 1626465114;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -152,9 +152,14 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiSyncStartSync({required String homeserverUrl});
 
+  Future<void> crateApiMessagesUnwatchRoomTimeline({
+    required PlatformInt64 watchId,
+  });
+
   Stream<List<MessageSummary>> crateApiMessagesWatchRoomTimeline({
     required String homeserverUrl,
     required String roomId,
+    required PlatformInt64 watchId,
   });
 
   Stream<List<RoomSummary>> crateApiRoomsWatchRooms({
@@ -702,9 +707,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "start_sync", argNames: ["homeserverUrl"]);
 
   @override
+  Future<void> crateApiMessagesUnwatchRoomTimeline({
+    required PlatformInt64 watchId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(watchId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiMessagesUnwatchRoomTimelineConstMeta,
+        argValues: [watchId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMessagesUnwatchRoomTimelineConstMeta =>
+      const TaskConstMeta(
+        debugName: "unwatch_room_timeline",
+        argNames: ["watchId"],
+      );
+
+  @override
   Stream<List<MessageSummary>> crateApiMessagesWatchRoomTimeline({
     required String homeserverUrl,
     required String roomId,
+    required PlatformInt64 watchId,
   }) {
     final sink = RustStreamSink<List<MessageSummary>>();
     unawaited(
@@ -714,11 +753,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             final serializer = SseSerializer(generalizedFrbRustBinding);
             sse_encode_String(homeserverUrl, serializer);
             sse_encode_String(roomId, serializer);
+            sse_encode_i_64(watchId, serializer);
             sse_encode_StreamSink_list_message_summary_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 17,
+              funcId: 18,
               port: port_,
             );
           },
@@ -727,7 +767,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: null,
           ),
           constMeta: kCrateApiMessagesWatchRoomTimelineConstMeta,
-          argValues: [homeserverUrl, roomId, sink],
+          argValues: [homeserverUrl, roomId, watchId, sink],
           apiImpl: this,
         ),
       ),
@@ -738,7 +778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiMessagesWatchRoomTimelineConstMeta =>
       const TaskConstMeta(
         debugName: "watch_room_timeline",
-        argNames: ["homeserverUrl", "roomId", "sink"],
+        argNames: ["homeserverUrl", "roomId", "watchId", "sink"],
       );
 
   @override
@@ -756,7 +796,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 18,
+              funcId: 19,
               port: port_,
             );
           },
@@ -790,7 +830,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 19,
+              funcId: 20,
               port: port_,
             );
           },

@@ -7,21 +7,32 @@ import '../frb_generated.dart';
 import 'media.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `reaction_summaries`, `summaries`, `utd_reason`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `lock_watches`, `reaction_summaries`, `summaries`, `utd_reason`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
-/// `paginate_backwards`, decryption catching up). Stops at the first change after
-/// Dart cancels the stream.
+/// `paginate_backwards`, decryption catching up). Stopped by
+/// `unwatch_room_timeline(watch_id)`; `watch_id` is unique per call (chosen by
+/// Dart), not per room, so a second watch of the same room isn't affected.
+/// Without the unwatch it would only stop at the first change after Dart
+/// cancels the stream (sending fails then).
 /// Errors go into the stream (a returned Err would never reach the Dart listener).
 Stream<List<MessageSummary>> watchRoomTimeline({
   required String homeserverUrl,
   required String roomId,
+  required PlatformInt64 watchId,
 }) => RustLib.instance.api.crateApiMessagesWatchRoomTimeline(
   homeserverUrl: homeserverUrl,
   roomId: roomId,
+  watchId: watchId,
 );
+
+/// Stops a `watch_room_timeline` (dropping its timeline). Call it when
+/// cancelling the stream. A no-op if it already ended; if it hasn't started its
+/// task yet, it ends at its first change instead.
+Future<void> unwatchRoomTimeline({required PlatformInt64 watchId}) =>
+    RustLib.instance.api.crateApiMessagesUnwatchRoomTimeline(watchId: watchId);
 
 /// Loads older messages into the watched timeline (they arrive through
 /// `watch_room_timeline`). Returns whether the start of the room was reached.
