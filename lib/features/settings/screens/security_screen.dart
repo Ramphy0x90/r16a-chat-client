@@ -66,7 +66,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
                       status: _status,
                       isWorking: _isWorking,
                       errorMessage: _errorMessage,
-                      onSetUp: () => _createKey(reset: false),
+                      onSetUp: _setUp,
                       onEnterKey: _enterKey,
                       onResetKey: _confirmResetKey,
                       onRetry: _loadStatus,
@@ -107,6 +107,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
             )
           : await enableRecovery(
               homeserverUrl: AppConstants.defaultHomeserverUrl,
+              deleteOldBackup: _status == RecoveryStatus.unusableBackup,
             );
       if (mounted) setState(() => _newKey = key);
     } catch (e) {
@@ -114,6 +115,35 @@ class _SecurityScreenState extends State<SecurityScreen> {
     } finally {
       if (mounted) setState(() => _isWorking = false);
     }
+  }
+
+  /// An unusable backup gets deleted by setting up, so ask first.
+  Future<void> _setUp() async {
+    if (_status != RecoveryStatus.unusableBackup) {
+      return _createKey(reset: false);
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Replace the old backup?'),
+        content: const Text(
+          'The old backup will be deleted. Messages only in it can\'t be read '
+          'anymore, unless another device you\'re still signed in on can '
+          'open it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _createKey(reset: false);
   }
 
   Future<void> _confirmResetKey() async {

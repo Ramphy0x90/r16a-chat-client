@@ -90,6 +90,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<String> crateApiRecoveryEnableRecovery({
     required String homeserverUrl,
+    required bool deleteOldBackup,
   });
 
   Future<ProfileInfo> crateApiProfileGetProfile({
@@ -243,12 +244,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<String> crateApiRecoveryEnableRecovery({
     required String homeserverUrl,
+    required bool deleteOldBackup,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(homeserverUrl, serializer);
+          sse_encode_bool(deleteOldBackup, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -261,7 +264,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiRecoveryEnableRecoveryConstMeta,
-        argValues: [homeserverUrl],
+        argValues: [homeserverUrl, deleteOldBackup],
         apiImpl: this,
       ),
     );
@@ -270,7 +273,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiRecoveryEnableRecoveryConstMeta =>
       const TaskConstMeta(
         debugName: "enable_recovery",
-        argNames: ["homeserverUrl"],
+        argNames: ["homeserverUrl", "deleteOldBackup"],
       );
 
   @override

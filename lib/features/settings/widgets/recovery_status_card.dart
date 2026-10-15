@@ -52,6 +52,14 @@ class RecoveryStatusCard extends StatelessWidget {
         'Set up recovery',
         onSetUp,
       ),
+      RecoveryStatus.unusableBackup => (
+        'Message backup is off',
+        'There\'s an old backup on the server that this device can\'t open '
+            '(it has no recovery key). Set up recovery to replace it with a '
+            'new backup.',
+        'Set up recovery',
+        onSetUp,
+      ),
       RecoveryStatus.incomplete => (
         'Recovery key needed',
         'Your messages are backed up, but this device needs your recovery '

@@ -18,10 +18,17 @@ Future<RecoveryStatus> getRecoveryStatus({required String homeserverUrl}) =>
 /// the user must save: it's the only way to read encrypted history on a new
 /// login. Never log or store it. Waits until the existing room keys are uploaded
 /// to the backup, so logging out right after doesn't lose any.
-Future<String> enableRecovery({required String homeserverUrl}) => RustLib
-    .instance
-    .api
-    .crateApiRecoveryEnableRecovery(homeserverUrl: homeserverUrl);
+///
+/// `delete_old_backup` (for `UnusableBackup`, after the user agreed) deletes the
+/// backup on the server first; the SDK refuses to replace it otherwise. Keys
+/// only in that backup are lost (they already were for this device).
+Future<String> enableRecovery({
+  required String homeserverUrl,
+  required bool deleteOldBackup,
+}) => RustLib.instance.api.crateApiRecoveryEnableRecovery(
+  homeserverUrl: homeserverUrl,
+  deleteOldBackup: deleteOldBackup,
+);
 
 /// Unlocks the backup with the user's recovery key (for `Incomplete`). Messages
 /// that couldn't be decrypted then get their keys from the backup and turn
@@ -57,4 +64,9 @@ enum RecoveryStatus {
   /// Set up (on another device, or before logging out), but this device
   /// needs the recovery key (`recover`).
   incomplete,
+
+  /// Never set up, but there's a backup on the server without a recovery key
+  /// (made by another app, or by an older build of this one), which this
+  /// device can't open. `enable_recovery` must delete it first.
+  unusableBackup,
 }

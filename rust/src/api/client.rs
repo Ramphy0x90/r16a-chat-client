@@ -69,9 +69,12 @@ pub(crate) async fn get_or_create_client(svr_url: &str) -> Result<Client, String
         .with_encryption_settings(EncryptionSettings {
             // Needed for recovery (see recovery.rs): it stores the cross-signing keys.
             auto_enable_cross_signing: true,
-            // Room keys get backed up from the start, even before the user
-            // sets up recovery (which then stores the backup key too).
-            auto_enable_backups: true,
+            // Off on purpose: an automatic backup has no recovery key, its key
+            // only lives in this device's store and is gone after logout, which
+            // leaves an unusable backup on the server. `enable_recovery`
+            // creates the backup together with the key (and uploads all keys
+            // this device already has), so nothing is lost by waiting.
+            auto_enable_backups: false,
             // After recovering, fetch a room's key from the backup when one of its
             // messages can't be decrypted, rather than downloading all at once.
             backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,

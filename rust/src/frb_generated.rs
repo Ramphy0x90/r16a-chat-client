@@ -108,12 +108,16 @@ fn wire__crate__api__recovery__enable_recovery_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_homeserver_url = <String>::sse_decode(&mut deserializer);
+            let api_delete_old_backup = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, String>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::recovery::enable_recovery(api_homeserver_url).await?;
+                        let output_ok = crate::api::recovery::enable_recovery(
+                            api_homeserver_url,
+                            api_delete_old_backup,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -1360,6 +1364,7 @@ impl SseDecode for crate::api::recovery::RecoveryStatus {
             1 => crate::api::recovery::RecoveryStatus::Enabled,
             2 => crate::api::recovery::RecoveryStatus::Disabled,
             3 => crate::api::recovery::RecoveryStatus::Incomplete,
+            4 => crate::api::recovery::RecoveryStatus::UnusableBackup,
             _ => unreachable!("Invalid variant for RecoveryStatus: {}", inner),
         };
     }
@@ -1642,6 +1647,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::recovery::RecoveryStatus {
             Self::Enabled => 1.into_dart(),
             Self::Disabled => 2.into_dart(),
             Self::Incomplete => 3.into_dart(),
+            Self::UnusableBackup => 4.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2001,6 +2007,7 @@ impl SseEncode for crate::api::recovery::RecoveryStatus {
                 crate::api::recovery::RecoveryStatus::Enabled => 1,
                 crate::api::recovery::RecoveryStatus::Disabled => 2,
                 crate::api::recovery::RecoveryStatus::Incomplete => 3,
+                crate::api::recovery::RecoveryStatus::UnusableBackup => 4,
                 _ => {
                     unimplemented!("");
                 }
