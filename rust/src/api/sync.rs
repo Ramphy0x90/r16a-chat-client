@@ -3,7 +3,8 @@ use std::time::Duration;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::api::error::ErrorKind;
 use matrix_sdk::{Client, LoopCtrl};
-use tokio::sync::watch;
+use futures_util::future;
+use tokio::sync::{broadcast, watch};
 use crate::api::client::{get_or_create_client, start_sync_task_once};
 use crate::frb_generated::StreamSink;
 
@@ -39,7 +40,7 @@ pub async fn start_sync(homeserver_url: String) -> Result<(), String> {
 
     start_sync_task_once(|| {
         set_state(SyncState::Connecting);
-        flutter_rust_bridge::spawn(run_sync_loop(client)).abort_handle()
+        flutter_rust_bridge::spawn(sync_task(client)).abort_handle()
     })
     .await;
     Ok(())
@@ -67,6 +68,15 @@ pub(crate) fn set_state(state: SyncState) {
     SYNC_STATE.send_if_modified(|current| std::mem::replace(current, state) != state);
 }
 
+async fn sync_task(client: Client) {
+    // Messages still queued from the last run (the queue is persisted).
+    client.send_queue().respawn_tasks_for_rooms_with_unsent_requests().await;
+    // Resuming the send queue depends on the sync state, so it lives and dies
+    // with the sync loop.
+    // Box::pin rather than pin!: flutter_rust_bridge's parser rejects the macro.
+    future::select(Box::pin(run_sync_loop(client.clone())), Box::pin(resume_send_queues(client))).await;
+}
+
 /// Syncs until the session becomes invalid. Network/server errors are retried
 /// (the SDK retries first, this adds a delay on top before trying again).
 async fn run_sync_loop(client: Client) {
@@ -92,4 +102,31 @@ async fn run_sync_loop(client: Client) {
             }
         })
         .await;
+}
+
+/// The SDK pauses a room's send queue after a send error. For recoverable ones
+/// (offline, server hiccup) the message stays queued: resume the queue once
+/// the sync is connected again (and after a delay, so a failing server isn't
+/// hammered). Unrecoverable ones are left to the user (`retry_send`).
+async fn resume_send_queues(client: Client) {
+    let mut errors = client.send_queue().subscribe_errors();
+    loop {
+        let room_id = match errors.recv().await {
+            Ok(error) if error.is_recoverable => Some(error.room_id),
+            Ok(_) => continue,
+            // Missed some errors: resume every room below.
+            Err(broadcast::error::RecvError::Lagged(_)) => None,
+            Err(broadcast::error::RecvError::Closed) => return,
+        };
+
+        tokio::time::sleep(RETRY_DELAY).await;
+        let mut state = SYNC_STATE.subscribe();
+        // Only errors if the sender is dropped, which a static never is.
+        let _ = state.wait_for(|state| *state == SyncState::Connected).await;
+
+        match room_id.and_then(|room_id| client.get_room(&room_id)) {
+            Some(room) => room.send_queue().set_enabled(true),
+            None => client.send_queue().set_enabled(true).await,
+        }
+    }
 }

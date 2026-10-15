@@ -22,6 +22,9 @@ class MessageList extends StatelessWidget {
   final void Function(MediaInfo media) onOpenImage;
   final void Function(MediaInfo media) onSaveFile;
 
+  /// Tapping one of our messages that failed to send.
+  final void Function(MessageSummary message) onFailedTap;
+
   /// Handles of the files currently being saved.
   final Set<String> savingHandles;
 
@@ -34,6 +37,7 @@ class MessageList extends StatelessWidget {
     required this.loadPreview,
     required this.onOpenImage,
     required this.onSaveFile,
+    required this.onFailedTap,
     required this.savingHandles,
   });
 
@@ -75,6 +79,7 @@ class MessageList extends StatelessWidget {
               loadPreview: loadPreview,
               onOpenImage: onOpenImage,
               onSaveFile: onSaveFile,
+              onFailedTap: () => onFailedTap(message),
               isSaving: savingHandles.contains(message.media?.handle),
             ),
             _DateRow(:final day) => _DateSeparator(

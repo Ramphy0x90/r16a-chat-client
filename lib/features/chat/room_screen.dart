@@ -94,6 +94,7 @@ class _RoomScreenState extends State<RoomScreen> {
       loadPreview: _loadPreview,
       onOpenImage: _openImage,
       onSaveFile: _saveFile,
+      onFailedTap: _showUnsentOptions,
       savingHandles: _savingHandles,
     );
   }
@@ -226,22 +227,58 @@ class _RoomScreenState extends State<RoomScreen> {
     setState(() => _isSending = true);
 
     try {
+      // Only queues it (fast, also offline): the message shows up right away
+      // through the timeline as "Sending…" and Rust sends it in the background.
       await sendTextMessage(
         homeserverUrl: AppConstants.defaultHomeserverUrl,
         roomId: widget.roomId,
         body: text,
       );
-      // The sent message shows up through the timeline like any other.
       return true;
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
-      }
+      _showSnackBar('Failed to send: $e');
       return false;
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  Future<void> _showUnsentOptions(MessageSummary message) async {
+    final retry = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh),
+              title: const Text('Try again'),
+              onTap: () => Navigator.pop(context, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete message'),
+              onTap: () => Navigator.pop(context, false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (retry == null) return;
+
+    try {
+      if (retry) {
+        await retrySend(roomId: widget.roomId, messageId: message.id);
+      } else {
+        await deleteUnsent(roomId: widget.roomId, messageId: message.id);
+      }
+    } catch (e) {
+      _showSnackBar(retry ? 'Failed to retry: $e' : 'Failed to delete: $e');
+    }
+  }
+
+  void _showSnackBar(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 }

@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `run_sync_loop`, `set_state`
+// These functions are ignored because they are not marked as `pub`: `resume_send_queues`, `run_sync_loop`, `set_state`, `sync_task`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
 
 /// Starts the background sync loop, no-op if it's already running.

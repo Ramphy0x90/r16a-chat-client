@@ -13,6 +13,9 @@ class MessageBubble extends StatelessWidget {
   final void Function(MediaInfo media) onOpenImage;
   final void Function(MediaInfo media) onSaveFile;
 
+  /// Tapping a message that failed to send (offer retry / delete).
+  final VoidCallback onFailedTap;
+
   /// Whether this message's file is being saved.
   final bool isSaving;
 
@@ -22,6 +25,7 @@ class MessageBubble extends StatelessWidget {
     required this.loadPreview,
     required this.onOpenImage,
     required this.onSaveFile,
+    required this.onFailedTap,
     required this.isSaving,
   });
 
@@ -33,7 +37,12 @@ class MessageBubble extends StatelessWidget {
 
     final sender = isOwn ? 'You' : _displaySender(message.sender);
     final time = _formatTime(message.timestampMs);
-    final timeLabel = message.isEdited ? '$time · edited' : time;
+    final timeLabel = switch (message.sendState) {
+      SendState.sending => '$time · Sending…',
+      SendState.failed => 'Not sent · tap for options',
+      null => message.isEdited ? '$time · edited' : time,
+    };
+    final isFailed = message.sendState == SendState.failed;
 
     return Semantics(
       container: true,
@@ -51,40 +60,44 @@ class MessageBubble extends StatelessWidget {
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 3,
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isOwn ? colors.primary : colors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 2,
-                    children: [
-                      if (!isOwn)
+                GestureDetector(
+                  onTap: isFailed ? onFailedTap : null,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 3,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isOwn ? colors.primary : colors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 2,
+                      children: [
+                        if (!isOwn)
+                          Text(
+                            sender,
+                            style: textTheme.labelMedium?.copyWith(
+                              color: colors.secondary,
+                            ),
+                          ),
+                        _buildBody(colors, sender),
                         Text(
-                          sender,
-                          style: textTheme.labelMedium?.copyWith(
-                            color: colors.secondary,
+                          timeLabel,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: isOwn
+                                ? colors.onPrimary.withValues(alpha: 0.7)
+                                : colors.onSurfaceVariant,
+                            fontWeight: isFailed ? FontWeight.w600 : null,
                           ),
                         ),
-                      _buildBody(colors, sender),
-                      Text(
-                        timeLabel,
-                        style: textTheme.labelSmall?.copyWith(
-                          color: isOwn
-                              ? colors.onPrimary.withValues(alpha: 0.7)
-                              : colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 if (message.reactions.isNotEmpty)

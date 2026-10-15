@@ -55,6 +55,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MediaInfo dco_decode_box_autoadd_media_info(dynamic raw);
 
   @protected
+  SendState dco_decode_box_autoadd_send_state(dynamic raw);
+
+  @protected
   UtdReason dco_decode_box_autoadd_utd_reason(dynamic raw);
 
   @protected
@@ -100,6 +103,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MediaInfo? dco_decode_opt_box_autoadd_media_info(dynamic raw);
 
   @protected
+  SendState? dco_decode_opt_box_autoadd_send_state(dynamic raw);
+
+  @protected
   UtdReason? dco_decode_opt_box_autoadd_utd_reason(dynamic raw);
 
   @protected
@@ -113,6 +119,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoomSummary dco_decode_room_summary(dynamic raw);
+
+  @protected
+  SendState dco_decode_send_state(dynamic raw);
 
   @protected
   SyncState dco_decode_sync_state(dynamic raw);
@@ -163,6 +172,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MediaInfo sse_decode_box_autoadd_media_info(SseDeserializer deserializer);
+
+  @protected
+  SendState sse_decode_box_autoadd_send_state(SseDeserializer deserializer);
 
   @protected
   UtdReason sse_decode_box_autoadd_utd_reason(SseDeserializer deserializer);
@@ -216,6 +228,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SendState? sse_decode_opt_box_autoadd_send_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UtdReason? sse_decode_opt_box_autoadd_utd_reason(
     SseDeserializer deserializer,
   );
@@ -231,6 +248,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RoomSummary sse_decode_room_summary(SseDeserializer deserializer);
+
+  @protected
+  SendState sse_decode_send_state(SseDeserializer deserializer);
 
   @protected
   SyncState sse_decode_sync_state(SseDeserializer deserializer);
@@ -292,6 +312,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_media_info(
     MediaInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_send_state(
+    SendState self,
     SseSerializer serializer,
   );
 
@@ -365,6 +391,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_send_state(
+    SendState? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_utd_reason(
     UtdReason? self,
     SseSerializer serializer,
@@ -387,6 +419,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_room_summary(RoomSummary self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_send_state(SendState self, SseSerializer serializer);
 
   @protected
   void sse_encode_sync_state(SyncState self, SseSerializer serializer);

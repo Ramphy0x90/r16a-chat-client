@@ -7,7 +7,7 @@ use matrix_sdk::Client;
 use matrix_sdk_base::crypto::types::events::UtdCause;
 use matrix_sdk::ruma::{RoomId, UserId};
 use matrix_sdk::ruma::events::room::message::{MessageType, RoomMessageEventContent};
-use matrix_sdk_ui::timeline::{EncryptedMessage, MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
+use matrix_sdk_ui::timeline::{EncryptedMessage, EventSendState, EventTimelineItem, MsgLikeContent, MsgLikeKind, RoomExt, Timeline, TimelineItem, TimelineItemContent};
 use crate::api::client::{get_or_create_client, track_task};
 use crate::api::media::{media_info, MediaInfo};
 use crate::frb_generated::StreamSink;
@@ -60,6 +60,17 @@ pub enum UtdReason {
     UntrustedSender,
 }
 
+/// A message of ours that isn't on the server yet (sent ones have none).
+#[derive(Clone, Copy)]
+pub enum SendState {
+    /// Queued, or waiting to retry after a network/server error (retried
+    /// automatically once the sync is connected again, see `sync.rs`).
+    Sending,
+    /// Rejected by the server (e.g. too large, no permission). Stays until
+    /// `retry_send` or `delete_unsent`.
+    Failed,
+}
+
 #[derive(Clone)]
 pub struct MessageSummary {
     /// Stable across a local echo becoming the sent event, use it as the list key.
@@ -78,6 +89,8 @@ pub struct MessageSummary {
     pub media: Option<MediaInfo>,
     /// Set for `UnableToDecrypt`.
     pub utd_reason: Option<UtdReason>,
+    /// Set while our message isn't sent yet (local echo).
+    pub send_state: Option<SendState>,
 }
 
 #[derive(Clone)]
@@ -165,12 +178,7 @@ fn lock_watches() -> std::sync::MutexGuard<'static, HashMap<i64, AbortHandle>> {
 /// again when the list grows. Capped so a room full of hidden events can't loop
 /// for long; the UI can still ask for more.
 pub async fn paginate_backwards(room_id: String, count: u16) -> Result<bool, String> {
-    let timeline = TIMELINES
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(&room_id)
-        .and_then(Weak::upgrade)
-        .ok_or_else(|| format!("Room {room_id} isn't being watched"))?;
+    let timeline = watched_timeline(&room_id)?;
 
     let own_user_id = timeline.room().own_user_id();
     let before = summaries(&timeline.items().await, own_user_id).len();
@@ -186,17 +194,56 @@ pub async fn paginate_backwards(room_id: String, count: u16) -> Result<bool, Str
     Ok(false)
 }
 
-/// Sends a plain-text message, returns its event ID.
-pub async fn send_text_message(homeserver_url: String, room_id: String, body: String) -> Result<String, String> {
+/// Queues a plain-text message. Returns once it's queued (stored locally), not
+/// sent: it shows up in the timeline right away as `SendState::Sending`.
+/// The queue survives restarts, see `sync.rs` for resending.
+pub async fn send_text_message(homeserver_url: String, room_id: String, body: String) -> Result<(), String> {
     let client = get_or_create_client(&homeserver_url).await?;
     let room = get_room(&client, &room_id)?;
 
-    let result = room
-        .send(RoomMessageEventContent::text_plain(body))
+    room.send_queue()
+        .send(RoomMessageEventContent::text_plain(body).into())
         .await
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
 
-    Ok(result.response.event_id.to_string())
+/// Tries a `SendState::Failed` message again. `message_id` is `MessageSummary::id`.
+pub async fn retry_send(room_id: String, message_id: String) -> Result<(), String> {
+    let (timeline, event) = find_watched_event(&room_id, &message_id).await?;
+    let handle = event.local_echo_send_handle().ok_or("Message was already sent")?;
+    handle.unwedge().await.map_err(|e| e.to_string())?;
+    // The SDK pauses the room's queue after any error, unwedging doesn't resume it.
+    timeline.room().send_queue().set_enabled(true);
+    Ok(())
+}
+
+/// Drops a message that isn't sent yet. Returns false if it got sent meanwhile.
+pub async fn delete_unsent(room_id: String, message_id: String) -> Result<bool, String> {
+    let (_, event) = find_watched_event(&room_id, &message_id).await?;
+    let handle = event.local_echo_send_handle().ok_or("Message was already sent")?;
+    handle.abort().await.map_err(|e| e.to_string())
+}
+
+async fn find_watched_event(room_id: &str, message_id: &str) -> Result<(Arc<Timeline>, EventTimelineItem), String> {
+    let timeline = watched_timeline(room_id)?;
+    let event = timeline
+        .items()
+        .await
+        .iter()
+        .find(|item| item.unique_id().0 == message_id)
+        .and_then(|item| item.as_event().cloned())
+        .ok_or("Message not found")?;
+    Ok((timeline, event))
+}
+
+fn watched_timeline(room_id: &str) -> Result<Arc<Timeline>, String> {
+    TIMELINES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(room_id)
+        .and_then(Weak::upgrade)
+        .ok_or_else(|| format!("Room {room_id} isn't being watched"))
 }
 
 async fn build_timeline(homeserver_url: &str, room_id: &str) -> Result<Timeline, String> {
@@ -238,6 +285,7 @@ fn summaries(items: &Vector<Arc<TimelineItem>>, own_user_id: &UserId) -> Vec<Mes
                     MsgLikeKind::UnableToDecrypt(message) => Some(utd_reason(message)),
                     _ => None,
                 },
+                send_state: send_state(event),
             })
         })
         .collect()
@@ -275,6 +323,15 @@ fn kind_and_body(kind: &MsgLikeKind) -> (MessageKind, String) {
         MsgLikeKind::Poll(_) | MsgLikeKind::Other(_) | MsgLikeKind::LiveLocation(_) => {
             (MessageKind::Unsupported, String::new())
         }
+    }
+}
+
+fn send_state(event: &EventTimelineItem) -> Option<SendState> {
+    match event.send_state()? {
+        EventSendState::NotSentYet { .. } => Some(SendState::Sending),
+        EventSendState::SendingFailed { is_recoverable: true, .. } => Some(SendState::Sending),
+        EventSendState::SendingFailed { is_recoverable: false, .. } => Some(SendState::Failed),
+        EventSendState::Sent { .. } => None,
     }
 }
 

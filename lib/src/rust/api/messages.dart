@@ -7,8 +7,8 @@ import '../frb_generated.dart';
 import 'media.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `get_room`, `kind_and_body`, `lock_watches`, `reaction_summaries`, `summaries`, `utd_reason`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`
+// These functions are ignored because they are not marked as `pub`: `build_timeline`, `caption`, `find_watched_event`, `get_room`, `kind_and_body`, `lock_watches`, `reaction_summaries`, `send_state`, `summaries`, `utd_reason`, `watched_timeline`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`
 
 /// Streams the room's messages (oldest first) as a full list: once right away with
 /// what's cached locally, then again on every change (new messages, older ones from
@@ -47,8 +47,10 @@ Future<bool> paginateBackwards({required String roomId, required int count}) =>
       count: count,
     );
 
-/// Sends a plain-text message, returns its event ID.
-Future<String> sendTextMessage({
+/// Queues a plain-text message. Returns once it's queued (stored locally), not
+/// sent: it shows up in the timeline right away as `SendState::Sending`.
+/// The queue survives restarts, see `sync.rs` for resending.
+Future<void> sendTextMessage({
   required String homeserverUrl,
   required String roomId,
   required String body,
@@ -56,6 +58,22 @@ Future<String> sendTextMessage({
   homeserverUrl: homeserverUrl,
   roomId: roomId,
   body: body,
+);
+
+/// Tries a `SendState::Failed` message again. `message_id` is `MessageSummary::id`.
+Future<void> retrySend({required String roomId, required String messageId}) =>
+    RustLib.instance.api.crateApiMessagesRetrySend(
+      roomId: roomId,
+      messageId: messageId,
+    );
+
+/// Drops a message that isn't sent yet. Returns false if it got sent meanwhile.
+Future<bool> deleteUnsent({
+  required String roomId,
+  required String messageId,
+}) => RustLib.instance.api.crateApiMessagesDeleteUnsent(
+  roomId: roomId,
+  messageId: messageId,
 );
 
 enum MessageKind {
@@ -106,6 +124,9 @@ class MessageSummary {
   /// Set for `UnableToDecrypt`.
   final UtdReason? utdReason;
 
+  /// Set while our message isn't sent yet (local echo).
+  final SendState? sendState;
+
   const MessageSummary({
     required this.id,
     required this.kind,
@@ -117,6 +138,7 @@ class MessageSummary {
     required this.reactions,
     this.media,
     this.utdReason,
+    this.sendState,
   });
 
   @override
@@ -130,7 +152,8 @@ class MessageSummary {
       isEdited.hashCode ^
       reactions.hashCode ^
       media.hashCode ^
-      utdReason.hashCode;
+      utdReason.hashCode ^
+      sendState.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -146,7 +169,8 @@ class MessageSummary {
           isEdited == other.isEdited &&
           reactions == other.reactions &&
           media == other.media &&
-          utdReason == other.utdReason;
+          utdReason == other.utdReason &&
+          sendState == other.sendState;
 }
 
 class ReactionSummary {
@@ -172,6 +196,17 @@ class ReactionSummary {
           key == other.key &&
           count == other.count &&
           reactedByMe == other.reactedByMe;
+}
+
+/// A message of ours that isn't on the server yet (sent ones have none).
+enum SendState {
+  /// Queued, or waiting to retry after a network/server error (retried
+  /// automatically once the sync is connected again, see `sync.rs`).
+  sending,
+
+  /// Rejected by the server (e.g. too large, no permission). Stays until
+  /// `retry_send` or `delete_unsent`.
+  failed,
 }
 
 /// Why an `UnableToDecrypt` message can't be read, the SDK's `UtdCause` grouped
