@@ -1,4 +1,5 @@
 use matrix_sdk::Client;
+use matrix_sdk::encryption::{BackupDownloadStrategy, EncryptionSettings};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -65,6 +66,16 @@ pub(crate) async fn get_or_create_client(svr_url: &str) -> Result<Client, String
     let client = Client::builder()
         .homeserver_url(svr_url)
         .sqlite_store(&store.path, Some(&store.passphrase))
+        .with_encryption_settings(EncryptionSettings {
+            // Needed for recovery (see recovery.rs): it stores the cross-signing keys.
+            auto_enable_cross_signing: true,
+            // Room keys get backed up from the start, even before the user
+            // sets up recovery (which then stores the backup key too).
+            auto_enable_backups: true,
+            // After recovering, fetch a room's key from the backup when one of its
+            // messages can't be decrypted, rather than downloading all at once.
+            backup_download_strategy: BackupDownloadStrategy::AfterDecryptionFailure,
+        })
         .build()
         .await
         .map_err(|e| e.to_string())?;

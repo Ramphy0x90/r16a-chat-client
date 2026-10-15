@@ -1,3 +1,4 @@
+use std::time::Duration;
 use matrix_sdk::authentication::matrix::MatrixSession;
 use crate::api::client::{current_client, get_or_create_client, reset_client};
 
@@ -32,11 +33,20 @@ pub async fn restore_session(homeserver_url: String, session_json: String) -> Re
     Ok(true)
 }
 
+/// How long `logout` waits for pending room keys to reach the backup.
+const BACKUP_UPLOAD_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// Invalidates the session on the server (best effort), then drops the client and
 /// deletes the local store. Always logs out locally: an offline user or an already
 /// revoked token (`M_UNKNOWN_TOKEN`) shouldn't leave the user stuck logged in.
 pub async fn logout() -> Result<(), String> {
     if let Some(client) = current_client().await {
+        // The store (with the room keys) is deleted below: give the backup a
+        // moment to upload the latest ones. Best effort too (offline: they're lost).
+        let backups = client.encryption().backups();
+        if backups.are_enabled().await {
+            let _ = tokio::time::timeout(BACKUP_UPLOAD_TIMEOUT, backups.wait_for_steady_state()).await;
+        }
         // Ignored on purpose, see above. If it fails, the device stays in the
         // server's device list until removed from another session.
         let _ = client.logout().await;
