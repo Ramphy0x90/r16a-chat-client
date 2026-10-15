@@ -6,6 +6,9 @@ class AppConstants {
 
 class Routes {
   static const login = '/login';
+
+  /// Enter the recovery key (after login, or from Settings > Security).
+  static const recover = '/recover';
   static const chats = '/chats';
   static String room(String roomId) => '$chats/${Uri.encodeComponent(roomId)}';
   static const contacts = '/contacts';

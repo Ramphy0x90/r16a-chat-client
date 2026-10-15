@@ -41,13 +41,14 @@ rust/
   src/
     lib.rs
     images.rs    # crate-internal untrusted-image decoding (reencode_png, check_dimensions), not bridged
-    api.rs       # pub mod auth; pub mod client; pub mod media; pub mod messages; pub mod profile; pub mod rooms; pub mod sync;
+    api.rs       # pub mod auth; pub mod client; pub mod media; pub mod messages; pub mod profile; pub mod recovery; pub mod rooms; pub mod sync;
     api/
       client.rs    # shared Client singleton + persistent store config
       auth.rs
       media.rs     # load_media_preview, load_media, save_media (opaque media handles)
       messages.rs  # watch_room_timeline, paginate_backwards, send_text_message (matrix-sdk-ui Timeline)
       profile.rs   # get_profile, set_display_name, set_avatar, remove_avatar
+      recovery.rs  # get_recovery_status, enable_recovery, reset_recovery_key, recover (key backup)
       rooms.rs     # watch_rooms, get_room_name
       sync.rs      # start_sync (background sync loop)
 ```
@@ -89,6 +90,7 @@ pub mod client;
 pub mod media;
 pub mod messages;
 pub mod profile;
+pub mod recovery;
 pub mod rooms;
 pub mod sync;
 ```
@@ -145,6 +147,16 @@ The client uses matrix-sdk's SQLite store (the `sqlite` feature is a matrix-sdk 
 - Stream functions must report errors via `sink.add_error(e)` and return `()`, **not** `Result::Err` — the generated Dart wrapper runs the Rust call in an `unawaited` future, so a returned `Err` never reaches the stream listener (the screen would spin forever).
 - The room timeline is reachable from `paginate_backwards(room_id, …)` through a `room_id → Weak<Timeline>` map; the watch task owns the `Arc`. Older messages arrive through the stream, not the return value (which is only "reached the start"). `paginate_backwards` repeats (max 5 rounds) until a visible message appears, because pages can consist only of hidden events.
 - `RoomScreen` calls `paginateBackwards` once after the first emission (which is only the local cache), then `MessageList` asks for more when scrolled near the top, with a "Load older messages" button as fallback when the content doesn't fill the screen. Date separators are computed in `MessageList` (the Timeline's own `DateDivider` items are skipped: a data-carrying enum on the bridge would need `freezed`). List keys are the timeline's `unique_id`, not event IDs. Sending goes through the SDK's send queue (`room.send_queue().send`, persisted in the store): the message shows up at once as a local echo with `MessageSummary.send_state` (`Sending`/`Failed`, `None` once sent). After *any* send error the SDK pauses that room's queue, and `sync.rs` (`resume_send_queues`) resumes it: right away after an unrecoverable error (the rejected message is parked as `Failed` and never picked again, the ones behind it go on), and after a recoverable one once the sync is `Connected` again, with a delay backing off from `RETRY_DELAY` to 5 min (reset after 10 min without errors), resuming all rooms at once. It subscribes to the errors before `respawn_tasks_for_rooms_with_unsent_requests` (resending what was queued at the last run), so an offline start isn't missed. `Failed` messages stay (persisted across restarts) until the user taps them: Retry (`retry_send`: unwedge + re-enable the queue) or Delete (`delete_unsent`); `Sending` ones can be deleted too. Both look the message up in the watched timeline by `MessageSummary.id`.
+
+### Key backup / recovery (`recovery.rs`)
+
+matrix-sdk's `encryption().recovery()`: key backup + secret storage, unlocked by one **recovery key** (no passphrase option, decided Oct 2026). The client is built with `EncryptionSettings { auto_enable_cross_signing, auto_enable_backups, backup_download_strategy: AfterDecryptionFailure }`, so room keys are backed up from the first login on, and after recovering, a room's keys are fetched from the backup when one of its messages fails to decrypt (the Timeline then re-decrypts it).
+
+- `get_recovery_status` waits for the SDK's post-login e2ee task (`wait_for_e2ee_initialization_tasks`), which reads the state from the server, so it's accurate right after login. `RecoveryStatus`: `Enabled` (nothing to do), `Disabled` (never set up), `Incomplete` (backup exists, this device needs the key), `Unknown` (check failed, e.g. offline).
+- After login, `LoginScreen` goes to `/recover` (`RecoverScreen`, top-level route outside the shells) when `Incomplete`; "Not now" goes to the chats. Settings > Security pushes the same route (done pops back).
+- Settings > Security: set up (`enable_recovery`, waits for the existing keys to upload), show the key **once** (`RecoveryKeyCard`, copy + "I've saved it"), or replace it when `Enabled` (`reset_recovery_key`).
+- The recovery key is a secret like the media handles: never log, persist or send it anywhere; the input has autocorrect/suggestions off.
+- The logout dialog warns when not `Enabled` (and offers "Set up backup"); `auth::logout` waits up to 10 s for pending keys to reach the backup before deleting the store.
 
 ### Media handles carry decryption keys
 
@@ -237,12 +249,12 @@ These are known gaps, not bugs to silently "complete" without flagging — menti
 
 - Session validity is only checked by the sync loop: a revoked token surfaces as `SessionExpired` after the first sync, and the user is shown the banner. The router guard itself still only checks that a session exists in local storage. Soft logout (`M_UNKNOWN_TOKEN` with `soft_logout: true`, which would allow re-login keeping the device and keys) is treated like a hard logout.
 - Sync 5xx errors are retried inside the SDK for up to 15 minutes before the loop sees them, so a server outage takes that long to show as `Disconnected` (offline/network errors show right away).
-- Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; there's no key backup yet, so old encrypted history is unreadable after logging back in (the confirm dialog says so). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
+- Logout (settings screen → `auth::logout` → `clearSession` → login) deletes the E2EE keys with the store; without recovery set up, old encrypted history is unreadable after logging back in (the confirm dialog warns and offers to set it up). If the server-side logout fails, the device lingers in the server's device list. The logout button uses Material's default `colorScheme.error`, not a `ZmeyColors` value.
 - Media: receive only, no sending images/files yet. Saving uses `file_selector`'s `getSaveLocation`, which doesn't exist on Android/iOS (desktop only for now). `save_media` holds the whole file in memory (no streaming to disk, no size cap beyond the server's upload limit) and refuses to overwrite existing files (the user has to pick another name). Previews are re-encoded on every load (the store caches the raw download, not the PNG). The file/download icons are Material `Icons`, not the app's SVG set.
 - Every timeline change re-maps and re-sends the whole message list across the bridge; fine for now, worth revisiting for rooms with long loaded histories.
 - Room screen: text, notices, emotes, "unable to decrypt" and "message deleted" are rendered (`MessageKind`); images show inline (tap → full-screen viewer), files/videos/audio show as a row with a Save button (videos/audio aren't playable); stickers/polls/locations show a "(not supported yet)" placeholder with the fallback text. State events (joins, renames...) are skipped. The UTD placeholder says why (`UtdReason`, the SDK's `UtdCause` grouped into 5 cases; `UtdCause` is only nameable via a direct `matrix-sdk-base` dependency, same version as matrix-sdk's). Edits (applied by the Timeline, "· edited" next to the time) and reactions (chips under the bubble, highlighted when you reacted) are display only: no editing, reacting or un-reacting yet, and no "who reacted" list. Sending shows a local echo ("Sending…" / "Not sent" with an icon, tap → Retry/Delete sheet; Material icons there and on the failed status); text only, and the composer still blocks for the moment it takes to queue. Room name comes from go_router `extra`, fetched with `get_room_name` on direct navigation.
 - `AuthScaffold` (and possibly other screens) still need a proper mobile/desktop `LayoutBuilder` split.
-- Settings sub-screens Security and Storage are routed placeholders with no real content yet (Customize has the theme choice). Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
+- Settings > Storage is a routed placeholder (Customize has the theme choice, Security the key backup). Recovery gaps: no way out of `Incomplete` when the key is lost (would need `reset_identity`, which needs the password / UIA); the shown key is gone if the user leaves Security before confirming (it's then only recoverable by "Get a new recovery key"); no device verification (by emoji/QR) yet; the status isn't watched live (fetched on open). Profile works (display name + avatar) with these gaps: it's fetched once on open (changes from another device only show after reopening); avatar fetch errors silently fall back to the initial letter; "Remove photo" only unsets the avatar URL, the uploaded file stays on the server; the user's own avatar isn't shown anywhere else in the app yet.
 - Design-review leftovers (theme/palette decisions pending): light-mode `lightTextSecondary` fails WCAG AA contrast; no palette error color (Material red used); Inter not bundled yet; Enter always sends in the composer (no newline on mobile).
 - Redesign in progress (mockups in `/home/ramphy/Documents/Design/zmey-client.pen`): theme foundation and navigation shell done; next is each screen's new look (login, chats, room, settings, contacts). Until then: screens keep their old look; drill-down screens show `DetailScaffold`'s back button even inside the desktop detail pane; Contacts is a placeholder; the dock/rail use `profile.svg` as a stand-in contacts icon; the rail doesn't show the user's own avatar yet. Icons missing from `assets/icons` are drawn by the user (marked "MISSING" in the mockups).
 

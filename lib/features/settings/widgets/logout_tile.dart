@@ -24,23 +24,39 @@ class LogoutTile extends StatelessWidget {
   }
 }
 
-/// Resolves to true when the user confirms.
-Future<bool> showLogoutConfirmDialog(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
+enum LogoutChoice { cancel, logout, setUpRecovery }
+
+/// Asks before logging out. The text depends on whether the messages are
+/// backed up (`isBackedUp`); if not, it also offers to set up recovery first.
+Future<LogoutChoice> showLogoutConfirmDialog(
+  BuildContext context, {
+  required bool isBackedUp,
+}) async {
+  final choice = await showDialog<LogoutChoice>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Log out?'),
-      content: const Text(
-        'Your encryption keys are deleted from this device. '
-        'Encrypted messages you received here can\'t be read again after logging back in.',
+      content: Text(
+        isBackedUp
+            ? 'Your messages are backed up. You\'ll need your recovery key to '
+                  'read encrypted messages after logging back in.'
+            : 'Message backup isn\'t set up. Your encryption keys are deleted '
+                  'from this device, so encrypted messages can\'t be read again '
+                  'after logging back in.',
       ),
       actions: [
+        if (!isBackedUp)
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(LogoutChoice.setUpRecovery),
+            child: const Text('Set up backup'),
+          ),
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => Navigator.of(context).pop(LogoutChoice.cancel),
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
+          onPressed: () => Navigator.of(context).pop(LogoutChoice.logout),
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
@@ -49,5 +65,5 @@ Future<bool> showLogoutConfirmDialog(BuildContext context) async {
       ],
     ),
   );
-  return confirmed ?? false;
+  return choice ?? LogoutChoice.cancel;
 }

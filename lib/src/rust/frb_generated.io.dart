@@ -8,6 +8,7 @@ import 'api/client.dart';
 import 'api/media.dart';
 import 'api/messages.dart';
 import 'api/profile.dart';
+import 'api/recovery.dart';
 import 'api/rooms.dart';
 import 'api/sync.dart';
 import 'dart:async';
@@ -116,6 +117,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ReactionSummary dco_decode_reaction_summary(dynamic raw);
+
+  @protected
+  RecoveryStatus dco_decode_recovery_status(dynamic raw);
 
   @protected
   RoomSummary dco_decode_room_summary(dynamic raw);
@@ -245,6 +249,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ReactionSummary sse_decode_reaction_summary(SseDeserializer deserializer);
+
+  @protected
+  RecoveryStatus sse_decode_recovery_status(SseDeserializer deserializer);
 
   @protected
   RoomSummary sse_decode_room_summary(SseDeserializer deserializer);
@@ -414,6 +421,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_reaction_summary(
     ReactionSummary self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recovery_status(
+    RecoveryStatus self,
     SseSerializer serializer,
   );
 

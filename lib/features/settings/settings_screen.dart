@@ -4,6 +4,7 @@ import 'package:r16a_chat_client/features/settings/widgets/logout_tile.dart';
 import 'package:r16a_chat_client/features/settings/widgets/setting_tile.dart';
 import 'package:r16a_chat_client/services/session_storage.dart';
 import 'package:r16a_chat_client/src/rust/api/auth.dart';
+import 'package:r16a_chat_client/src/rust/api/recovery.dart';
 import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -57,8 +58,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Unknown counts as not backed up: better a needless warning than none.
+  Future<bool> _isBackedUp() async {
+    try {
+      final status = await getRecoveryStatus(
+        homeserverUrl: AppConstants.defaultHomeserverUrl,
+      );
+      return status == RecoveryStatus.enabled;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _handleLogout() async {
-    if (!await showLogoutConfirmDialog(context) || !mounted) return;
+    final isBackedUp = await _isBackedUp();
+    if (!mounted) return;
+    final choice = await showLogoutConfirmDialog(
+      context,
+      isBackedUp: isBackedUp,
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case LogoutChoice.cancel:
+        return;
+      case LogoutChoice.setUpRecovery:
+        context.go(Routes.settingsSecurity);
+        return;
+      case LogoutChoice.logout:
+        break;
+    }
 
     setState(() => _isLoggingOut = true);
     final messenger = ScaffoldMessenger.of(context);

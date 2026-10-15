@@ -5,6 +5,7 @@ import 'package:r16a_chat_client/core/breakpoints.dart';
 import 'package:r16a_chat_client/core/constants.dart';
 import 'package:r16a_chat_client/core/master_detail_shell.dart';
 import 'package:r16a_chat_client/features/auth/login_screen.dart';
+import 'package:r16a_chat_client/features/auth/recover_screen.dart';
 import 'package:r16a_chat_client/features/chat/chat_screen.dart';
 import 'package:r16a_chat_client/features/chat/room_screen.dart';
 import 'package:r16a_chat_client/features/contacts/contacts_screen.dart';
@@ -30,6 +31,12 @@ final router = GoRouter(
     GoRoute(
       path: Routes.login,
       builder: (context, state) => const LoginScreen(),
+    ),
+    // Outside the shells: full screen on desktop too, before the chats exist
+    // (right after login) or pushed on top of Settings > Security.
+    GoRoute(
+      path: Routes.recover,
+      builder: (context, state) => const RecoverScreen(),
     ),
     ShellRoute(
       builder: (context, state, child) =>
