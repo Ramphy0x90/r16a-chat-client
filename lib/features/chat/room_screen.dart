@@ -94,7 +94,7 @@ class _RoomScreenState extends State<RoomScreen> {
       loadPreview: _loadPreview,
       onOpenImage: _openImage,
       onSaveFile: _saveFile,
-      onFailedTap: _showUnsentOptions,
+      onUnsentTap: _showUnsentOptions,
       savingHandles: _savingHandles,
     );
   }
@@ -243,22 +243,27 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  /// Failed: retry or delete. Still sending: delete only (it's retried
+  /// automatically, but the user may not want to wait).
   Future<void> _showUnsentOptions(MessageSummary message) async {
+    final canRetry = message.sendState == SendState.failed;
+    final error = Theme.of(context).colorScheme.error;
     final retry = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (canRetry)
+              ListTile(
+                leading: const Icon(Icons.refresh),
+                title: const Text('Try again'),
+                onTap: () => Navigator.pop(sheetContext, true),
+              ),
             ListTile(
-              leading: const Icon(Icons.refresh),
-              title: const Text('Try again'),
-              onTap: () => Navigator.pop(context, true),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('Delete message'),
-              onTap: () => Navigator.pop(context, false),
+              leading: Icon(Icons.delete_outline, color: error),
+              title: Text('Delete message', style: TextStyle(color: error)),
+              onTap: () => Navigator.pop(sheetContext, false),
             ),
           ],
         ),
@@ -270,7 +275,11 @@ class _RoomScreenState extends State<RoomScreen> {
       if (retry) {
         await retrySend(roomId: widget.roomId, messageId: message.id);
       } else {
-        await deleteUnsent(roomId: widget.roomId, messageId: message.id);
+        final deleted = await deleteUnsent(
+          roomId: widget.roomId,
+          messageId: message.id,
+        );
+        if (!deleted) _showSnackBar('Too late, the message was already sent');
       }
     } catch (e) {
       _showSnackBar(retry ? 'Failed to retry: $e' : 'Failed to delete: $e');

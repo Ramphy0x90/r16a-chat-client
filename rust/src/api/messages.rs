@@ -65,6 +65,7 @@ pub enum UtdReason {
 pub enum SendState {
     /// Queued, or waiting to retry after a network/server error (retried
     /// automatically once the sync is connected again, see `sync.rs`).
+    /// Can still be cancelled with `delete_unsent`.
     Sending,
     /// Rejected by the server (e.g. too large, no permission). Stays until
     /// `retry_send` or `delete_unsent`.
@@ -218,7 +219,8 @@ pub async fn retry_send(room_id: String, message_id: String) -> Result<(), Strin
     Ok(())
 }
 
-/// Drops a message that isn't sent yet. Returns false if it got sent meanwhile.
+/// Drops a message that isn't sent yet (`Sending` or `Failed`). Returns false
+/// if it got sent meanwhile.
 pub async fn delete_unsent(room_id: String, message_id: String) -> Result<bool, String> {
     let (_, event) = find_watched_event(&room_id, &message_id).await?;
     let handle = event.local_echo_send_handle().ok_or("Message was already sent")?;

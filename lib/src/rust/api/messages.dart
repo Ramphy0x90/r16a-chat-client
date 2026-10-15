@@ -67,7 +67,8 @@ Future<void> retrySend({required String roomId, required String messageId}) =>
       messageId: messageId,
     );
 
-/// Drops a message that isn't sent yet. Returns false if it got sent meanwhile.
+/// Drops a message that isn't sent yet (`Sending` or `Failed`). Returns false
+/// if it got sent meanwhile.
 Future<bool> deleteUnsent({
   required String roomId,
   required String messageId,
@@ -202,6 +203,7 @@ class ReactionSummary {
 enum SendState {
   /// Queued, or waiting to retry after a network/server error (retried
   /// automatically once the sync is connected again, see `sync.rs`).
+  /// Can still be cancelled with `delete_unsent`.
   sending,
 
   /// Rejected by the server (e.g. too large, no permission). Stays until

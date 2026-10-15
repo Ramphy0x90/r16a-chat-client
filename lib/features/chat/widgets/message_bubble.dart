@@ -13,8 +13,8 @@ class MessageBubble extends StatelessWidget {
   final void Function(MediaInfo media) onOpenImage;
   final void Function(MediaInfo media) onSaveFile;
 
-  /// Tapping a message that failed to send (offer retry / delete).
-  final VoidCallback onFailedTap;
+  /// Tapping one of our messages that isn't sent yet (offer retry / delete).
+  final VoidCallback onUnsentTap;
 
   /// Whether this message's file is being saved.
   final bool isSaving;
@@ -25,7 +25,7 @@ class MessageBubble extends StatelessWidget {
     required this.loadPreview,
     required this.onOpenImage,
     required this.onSaveFile,
-    required this.onFailedTap,
+    required this.onUnsentTap,
     required this.isSaving,
   });
 
@@ -39,14 +39,22 @@ class MessageBubble extends StatelessWidget {
     final time = _formatTime(message.timestampMs);
     final timeLabel = switch (message.sendState) {
       SendState.sending => '$time · Sending…',
-      SendState.failed => 'Not sent · tap for options',
+      SendState.failed => '$time · Not sent',
       null => message.isEdited ? '$time · edited' : time,
     };
     final isFailed = message.sendState == SendState.failed;
+    final isUnsent = message.sendState != null;
+    final bubbleColor = isOwn ? colors.primary : colors.surface;
+    final mutedColor = isOwn
+        ? colors.onPrimary.withValues(alpha: 0.7)
+        : colors.onSurfaceVariant;
+    // Not muted: it's the one status the user has to act on.
+    final failedColor = isOwn ? colors.onPrimary : colors.onSurface;
 
     return Semantics(
       container: true,
       label: '$sender, $timeLabel',
+      hint: isUnsent ? 'Show options' : null,
       child: Align(
         alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
         child: LayoutBuilder(
@@ -60,43 +68,61 @@ class MessageBubble extends StatelessWidget {
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: isFailed ? onFailedTap : null,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 3,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isOwn ? colors.primary : colors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 2,
-                      children: [
-                        if (!isOwn)
-                          Text(
-                            sender,
-                            style: textTheme.labelMedium?.copyWith(
-                              color: colors.secondary,
-                            ),
-                          ),
-                        _buildBody(colors, sender),
-                        Text(
-                          timeLabel,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: isOwn
-                                ? colors.onPrimary.withValues(alpha: 0.7)
-                                : colors.onSurfaceVariant,
-                            fontWeight: isFailed ? FontWeight.w600 : null,
-                          ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 3,
+                  ),
+                  // Material + InkWell rather than a decorated Container, so
+                  // tappable (unsent) bubbles get a ripple and a tap action
+                  // for screen readers.
+                  child: Material(
+                    color: bubbleColor,
+                    borderRadius: BorderRadius.circular(12),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: isUnsent ? onUnsentTap : null,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                      ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 2,
+                          children: [
+                            if (!isOwn)
+                              Text(
+                                sender,
+                                style: textTheme.labelMedium?.copyWith(
+                                  color: colors.secondary,
+                                ),
+                              ),
+                            _buildBody(colors, sender),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 4,
+                              children: [
+                                if (isFailed)
+                                  Icon(
+                                    Icons.error_outline,
+                                    size: 14,
+                                    color: failedColor,
+                                  ),
+                                Text(
+                                  timeLabel,
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: isFailed ? failedColor : mutedColor,
+                                    fontWeight: isFailed
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

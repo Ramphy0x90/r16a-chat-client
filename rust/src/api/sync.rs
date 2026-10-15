@@ -1,7 +1,8 @@
 use std::sync::LazyLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::ruma::api::error::ErrorKind;
+use matrix_sdk::send_queue::SendQueueRoomError;
 use matrix_sdk::{Client, LoopCtrl};
 use futures_util::future;
 use tokio::sync::{broadcast, watch};
@@ -10,6 +11,10 @@ use crate::frb_generated::StreamSink;
 
 const SYNC_TIMEOUT: Duration = Duration::from_secs(30);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+/// Send queue resumes back off from `RETRY_DELAY` up to this...
+const MAX_RESUME_DELAY: Duration = Duration::from_secs(300);
+/// ...and start over after this long without send errors.
+const RESUME_BACKOFF_RESET: Duration = Duration::from_secs(600);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SyncState {
@@ -69,12 +74,18 @@ pub(crate) fn set_state(state: SyncState) {
 }
 
 async fn sync_task(client: Client) {
+    // Subscribed first: the respawned queues can fail right away (offline start).
+    let errors = client.send_queue().subscribe_errors();
     // Messages still queued from the last run (the queue is persisted).
     client.send_queue().respawn_tasks_for_rooms_with_unsent_requests().await;
     // Resuming the send queue depends on the sync state, so it lives and dies
     // with the sync loop.
     // Box::pin rather than pin!: flutter_rust_bridge's parser rejects the macro.
-    future::select(Box::pin(run_sync_loop(client.clone())), Box::pin(resume_send_queues(client))).await;
+    future::select(
+        Box::pin(run_sync_loop(client.clone())),
+        Box::pin(resume_send_queues(client, errors)),
+    )
+    .await;
 }
 
 /// Syncs until the session becomes invalid. Network/server errors are retried
@@ -104,29 +115,44 @@ async fn run_sync_loop(client: Client) {
         .await;
 }
 
-/// The SDK pauses a room's send queue after a send error. For recoverable ones
-/// (offline, server hiccup) the message stays queued: resume the queue once
-/// the sync is connected again (and after a delay, so a failing server isn't
-/// hammered). Unrecoverable ones are left to the user (`retry_send`).
-async fn resume_send_queues(client: Client) {
-    let mut errors = client.send_queue().subscribe_errors();
+/// The SDK pauses a room's send queue after *any* send error.
+/// - Unrecoverable (server rejected it): the message is parked as `Failed` and
+///   never picked again, so the room is resumed right away for the messages
+///   behind it. The user decides about the failed one (`retry_send` / `delete_unsent`).
+/// - Recoverable (offline, server hiccup): the message stays queued. Resume
+///   once the sync is connected again, after a delay that backs off while
+///   sends keep failing (the sync can be fine while `/send` isn't).
+async fn resume_send_queues(client: Client, mut errors: broadcast::Receiver<SendQueueRoomError>) {
+    let mut delay = RETRY_DELAY;
     loop {
-        let room_id = match errors.recv().await {
-            Ok(error) if error.is_recoverable => Some(error.room_id),
-            Ok(_) => continue,
-            // Missed some errors: resume every room below.
-            Err(broadcast::error::RecvError::Lagged(_)) => None,
+        let waiting_since = Instant::now();
+        match errors.recv().await {
+            Ok(error) if !error.is_recoverable => {
+                if let Some(room) = client.get_room(&error.room_id) {
+                    room.send_queue().set_enabled(true);
+                }
+                continue;
+            }
+            // Lagged: missed some errors, the client-wide resume below covers them.
+            Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
             Err(broadcast::error::RecvError::Closed) => return,
-        };
+        }
+        if waiting_since.elapsed() > RESUME_BACKOFF_RESET {
+            delay = RETRY_DELAY;
+        }
 
-        tokio::time::sleep(RETRY_DELAY).await;
+        tokio::time::sleep(delay).await;
         let mut state = SYNC_STATE.subscribe();
         // Only errors if the sender is dropped, which a static never is.
         let _ = state.wait_for(|state| *state == SyncState::Connected).await;
 
-        match room_id.and_then(|room_id| client.get_room(&room_id)) {
-            Some(room) => room.send_queue().set_enabled(true),
-            None => client.send_queue().set_enabled(true).await,
-        }
+        // Errors from other rooms piled up meanwhile: one client-wide resume
+        // covers them all (parked `Failed` messages stay parked).
+        while !matches!(
+            errors.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty | broadcast::error::TryRecvError::Closed)
+        ) {}
+        client.send_queue().set_enabled(true).await;
+        delay = (delay * 2).min(MAX_RESUME_DELAY);
     }
 }
